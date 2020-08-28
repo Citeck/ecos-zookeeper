@@ -32,7 +32,7 @@ timestamps {
           doGenerateSubmoduleConfigurations: false,
           extensions: [],
           submoduleCfg: [],
-          userRemoteConfigs: [[credentialsId: 'bc074014-bab1-4fb0-b5a4-4cfa9ded5e66',url: "git@bitbucket.org:citeck/ecos-rabbitmq.git"]]
+          userRemoteConfigs: [[credentialsId: 'bc074014-bab1-4fb0-b5a4-4cfa9ded5e66',url: "git@bitbucket.org:citeck/ecos-zookeeper.git"]]
         ])
       }
       def project_version = readMavenPom().getVersion()
