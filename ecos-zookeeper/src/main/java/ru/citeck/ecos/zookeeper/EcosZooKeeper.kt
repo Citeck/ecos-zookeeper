@@ -7,16 +7,16 @@ import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.json.Json
 import java.time.Instant
 
-class EcosZooKeeperService(private val client: CuratorFramework) {
+class EcosZooKeeper(private val client: CuratorFramework) {
 
-    fun withNamespace(ns: String) : EcosZooKeeperService {
-        return EcosZooKeeperService(client.usingNamespace(ns))
+    fun withNamespace(ns: String) : EcosZooKeeper {
+        return EcosZooKeeper(client.usingNamespace(ns))
     }
 
     @JvmOverloads
     fun setValue(path: String, value: Any?, persistent: Boolean = true) {
 
-        val zNodeValue = ZNodeValue(Instant.now(), "", DataValue.create(value))
+        val zNodeValue = ZNodeValue(Instant.now(), DataValue.create(value))
         val valueBytes = Json.mapper.toBytes(zNodeValue)
 
         val current = client.checkExists().forPath(path)
@@ -43,7 +43,11 @@ class EcosZooKeeperService(private val client: CuratorFramework) {
     }
 
     fun getChildren(path: String) : List<String> {
-        return client.children.forPath(path)
+        return try {
+            client.children.forPath(path).orEmpty()
+        } catch (e : KeeperException.NoNodeException) {
+            emptyList()
+        }
     }
 
     fun watchChildren(path: String, action: (List<String>) -> Unit) {

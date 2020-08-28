@@ -31,11 +31,12 @@ class ZookeeperTest {
         val client = CuratorFrameworkFactory
             .newClient("localhost:2181", retryPolicy)
         client.start()
-        val service = EcosZooKeeperService(client).withNamespace("ecos")
+        val service = EcosZooKeeper(client).withNamespace("ecos")
 
         service.watchChildren("/aa/bb") {
             println("TRIGGER = $it")
         }
+        service.getChildren("/aa/bb/cc/dd/ee")
 
         service.setValue("/aa/bb/cc", TestData("aaa", "bbb", 232))
         println(service.getValue("/aa/bb/cc", TestData::class.java))
