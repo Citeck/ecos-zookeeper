@@ -1,9 +1,9 @@
 package ru.citeck.ecos.zookeeper
 
-import org.apache.curator.RetryPolicy
-import org.apache.curator.framework.CuratorFrameworkFactory
-import org.apache.curator.retry.RetryForever
-import org.apache.curator.test.TestingServer
+import ecos.org.apache.curator.RetryPolicy
+import ecos.org.apache.curator.framework.CuratorFrameworkFactory
+import ecos.org.apache.curator.retry.RetryForever
+import ecos.org.apache.curator.test.TestingServer
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test

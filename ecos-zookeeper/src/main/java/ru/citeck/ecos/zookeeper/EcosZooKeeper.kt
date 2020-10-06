@@ -1,8 +1,8 @@
 package ru.citeck.ecos.zookeeper
 
-import org.apache.curator.framework.CuratorFramework
-import org.apache.curator.framework.api.CuratorWatcher
-import org.apache.zookeeper.*
+import ecos.org.apache.curator.framework.CuratorFramework
+import ecos.org.apache.curator.framework.api.CuratorWatcher
+import ecos.curator.org.apache.zookeeper.*
 import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.json.Json
 import java.time.Instant
