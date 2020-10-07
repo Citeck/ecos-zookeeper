@@ -16,12 +16,12 @@ class ZookeeperTest {
 
     @BeforeAll
     fun setUp() {
-        zkServer = TestingServer(2181, true)
+        //zkServer = TestingServer(2181, true)
     }
 
     @AfterAll
     fun tearDown() {
-        zkServer!!.stop()
+        //zkServer!!.stop()
     }
 
     @Test

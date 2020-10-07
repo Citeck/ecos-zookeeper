@@ -5,5 +5,5 @@ import java.time.Instant
 
 class ZNodeValue(
     val created: Instant,
-    val data: DataValue
+    val data: DataValue?
 )

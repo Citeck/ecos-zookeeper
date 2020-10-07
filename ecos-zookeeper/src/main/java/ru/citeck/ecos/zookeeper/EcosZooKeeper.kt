@@ -34,6 +34,12 @@ class EcosZooKeeper(private val client: CuratorFramework) {
         }
     }
 
+    fun deleteValue(path: String) {
+        client.delete()
+            .deletingChildrenIfNeeded()
+            .forPath(path)
+    }
+
     fun <T : Any> getValue(path: String, type: Class<T>) : T? {
 
         val data = client.data.forPath(path)
@@ -50,14 +56,20 @@ class EcosZooKeeper(private val client: CuratorFramework) {
         }
     }
 
-    fun watchChildren(path: String, action: (List<String>) -> Unit) {
+    fun watchChildren(path: String, action: (WatchedEvent) -> Unit) {
         client.watchers()
             .add()
             .withMode(AddWatchMode.PERSISTENT)
-            .usingWatcher(CuratorWatcher { event ->
-                val res = client.children.forPath(event.path)
-                action.invoke(res ?: emptyList())
-            }).forPath(path)
+            .usingWatcher(CuratorWatcher { action.invoke(it) })
+            .forPath(path)
+    }
+
+    fun watchChildrenRecursive(path: String, action: (WatchedEvent) -> Unit) {
+        client.watchers()
+            .add()
+            .withMode(AddWatchMode.PERSISTENT_RECURSIVE)
+            .usingWatcher(CuratorWatcher { action.invoke(it) })
+            .forPath(path)
     }
 
     fun <T : Any> watchValue(path: String, type: Class<T>, action: (T?) -> Unit) {
