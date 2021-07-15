@@ -9,7 +9,7 @@ import java.time.Instant
 
 class EcosZooKeeper(private val client: CuratorFramework) {
 
-    fun withNamespace(ns: String) : EcosZooKeeper {
+    fun withNamespace(ns: String): EcosZooKeeper {
         return EcosZooKeeper(client.usingNamespace(ns))
     }
 
@@ -40,7 +40,7 @@ class EcosZooKeeper(private val client: CuratorFramework) {
             .forPath(path)
     }
 
-    fun <T : Any> getValue(path: String, type: Class<T>) : T? {
+    fun <T : Any> getValue(path: String, type: Class<T>): T? {
 
         val data = client.data.forPath(path)
         val znodeValue = Json.mapper.read(data, ZNodeValue::class.java)
@@ -48,10 +48,10 @@ class EcosZooKeeper(private val client: CuratorFramework) {
         return znodeValue?.data?.getAs(type)
     }
 
-    fun getChildren(path: String) : List<String> {
+    fun getChildren(path: String): List<String> {
         return try {
             client.children.forPath(path).orEmpty()
-        } catch (e : KeeperException.NoNodeException) {
+        } catch (e: KeeperException.NoNodeException) {
             emptyList()
         }
     }

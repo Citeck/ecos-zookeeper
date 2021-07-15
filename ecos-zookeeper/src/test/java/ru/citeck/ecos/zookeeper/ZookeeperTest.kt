@@ -12,16 +12,16 @@ import org.junit.jupiter.api.TestInstance
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ZookeeperTest {
 
-    var zkServer: TestingServer? = null
+    private var zkServer: TestingServer? = null
 
     @BeforeAll
     fun setUp() {
-        //zkServer = TestingServer(2181, true)
+        zkServer = TestingServer()
     }
 
     @AfterAll
     fun tearDown() {
-        //zkServer!!.stop()
+        zkServer!!.stop()
     }
 
     @Test
@@ -29,7 +29,7 @@ class ZookeeperTest {
         val retryPolicy: RetryPolicy = RetryForever(7_000)
 
         val client = CuratorFrameworkFactory
-            .newClient("localhost:2181", retryPolicy)
+            .newClient(zkServer!!.connectString, retryPolicy)
         client.start()
         val service = EcosZooKeeper(client).withNamespace("ecos")
 
