@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class ZookeeperTest {
+class ZooKeeperTest {
 
     private var zkServer: TestingServer? = null
 
