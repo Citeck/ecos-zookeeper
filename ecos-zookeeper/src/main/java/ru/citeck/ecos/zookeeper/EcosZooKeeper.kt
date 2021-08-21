@@ -68,12 +68,26 @@ class EcosZooKeeper(private val client: CuratorFramework) {
         return znodeValue?.data?.getAs(type)
     }
 
+    /**
+     * Return children keys without full path.
+     * You should use **getValue(path + "/" + getChildren(path).get(0))**
+     * to get value of first child or use getChildren* methods with expected value type
+     */
     fun getChildren(path: String): List<String> {
         return try {
             client.children.forPath(path).orEmpty()
         } catch (e: KeeperException.NoNodeException) {
             emptyList()
         }
+    }
+
+    fun <T : Any> getChildren(path: String, type: Class<T>): Map<String, T?> {
+        val childrenKeys = getChildren(path)
+        val result = linkedMapOf<String, T?>()
+        for (key in childrenKeys) {
+            result[key] = getValue("$path/$key", type)
+        }
+        return result
     }
 
     fun watchChildren(path: String, action: (WatchedEvent) -> Unit) {

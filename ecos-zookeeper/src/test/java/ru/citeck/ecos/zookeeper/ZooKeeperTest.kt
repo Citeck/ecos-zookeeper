@@ -58,12 +58,22 @@ class ZooKeeperTest {
         val expectedChildrenMap = hashMapOf<String, TestData>()
         valuesByPath.forEach { expectedChildrenMap[it.first] = it.second }
 
-        val children: Map<String, TestData> = service.getChildren("/aa/bb").map {
-            val key = "/aa/bb/$it"
-            key to service.getValue(key, TestData::class.java)!!
-        }.toMap(hashMapOf())
+        assertThat(getChildrenByPath("/aa/bb")).isEqualTo(expectedChildrenMap)
 
-        assertThat(children).isEqualTo(expectedChildrenMap)
+        val keyToRemove = "/aa/bb/cc"
+        expectedChildrenMap.remove(keyToRemove)
+        assertThat(expectedChildrenMap).hasSize(1)
+        service.deleteValue(keyToRemove)
+
+        assertThat(getChildrenByPath("/aa/bb")).isEqualTo(expectedChildrenMap)
+    }
+
+    private fun getChildrenByPath(path: String): Map<String, TestData> {
+        return service.getChildren(path, TestData::class.java)
+            .entries
+            .associate {
+                "$path/${it.key}" to it.value!!
+            }
     }
 
     data class TestData(
