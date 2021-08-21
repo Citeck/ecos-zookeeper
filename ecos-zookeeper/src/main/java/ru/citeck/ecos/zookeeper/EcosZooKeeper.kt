@@ -3,6 +3,7 @@ package ru.citeck.ecos.zookeeper
 import ecos.org.apache.curator.framework.CuratorFramework
 import ecos.org.apache.curator.framework.api.CuratorWatcher
 import ecos.curator.org.apache.zookeeper.*
+import ecos.curator.org.apache.zookeeper.data.Stat
 import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.json.Json
 import java.time.Instant
@@ -16,21 +17,30 @@ class EcosZooKeeper(private val client: CuratorFramework) {
     @JvmOverloads
     fun setValue(path: String, value: Any?, persistent: Boolean = true) {
 
-        val zNodeValue = ZNodeValue(Instant.now(), DataValue.create(value))
-        val valueBytes = Json.mapper.toBytes(zNodeValue)
+        val now = Instant.now()
 
-        val current = client.checkExists().forPath(path)
+        val current: Stat? = client.checkExists().forPath(path)
 
         if (current == null) {
+
+            val newValue = ZNodeValue(now, now, DataValue.create(value))
+
             client.create()
                 .creatingParentContainersIfNeeded()
                 .withMode(if (persistent) CreateMode.PERSISTENT else CreateMode.EPHEMERAL)
                 .withACL(ZooDefs.Ids.OPEN_ACL_UNSAFE)
-                .forPath(path, valueBytes)
+                .forPath(path, Json.mapper.toBytes(newValue))
+
         } else {
+
+            val currentValue = getValue(path, ZNodeValue::class.java)
+                ?: error("Existence was checked but null value was returned by path $path")
+
+            val newValue = ZNodeValue(currentValue.created, now, DataValue.create(value))
+
             client.setData()
                 .withVersion(current.version)
-                .forPath(path, valueBytes)
+                .forPath(path, Json.mapper.toBytes(newValue))
         }
     }
 
@@ -42,8 +52,18 @@ class EcosZooKeeper(private val client: CuratorFramework) {
 
     fun <T : Any> getValue(path: String, type: Class<T>): T? {
 
+        if (type == Unit::class.java) {
+            @Suppress("UNCHECKED_CAST")
+            return Unit as T
+        }
+
         val data = client.data.forPath(path)
         val znodeValue = Json.mapper.read(data, ZNodeValue::class.java)
+
+        if (type == ZNodeValue::class.java) {
+            @Suppress("UNCHECKED_CAST")
+            return znodeValue as T?
+        }
 
         return znodeValue?.data?.getAs(type)
     }

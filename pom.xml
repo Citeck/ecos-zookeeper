@@ -23,6 +23,7 @@
 
         <junit.version>5.7.2</junit.version>
         <slf4j.version>1.7.28</slf4j.version>
+        <assertj-core.version>3.19.0</assertj-core.version>
 
         <kotlin.version>1.5.21</kotlin.version>
         <kotlin.logging.version>1.12.5</kotlin.logging.version>
@@ -121,6 +122,13 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
             <version>${slf4j.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>${assertj-core.version}</version>
             <scope>test</scope>
         </dependency>
 
