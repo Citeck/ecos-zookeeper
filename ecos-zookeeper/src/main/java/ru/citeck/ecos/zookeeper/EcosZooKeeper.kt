@@ -44,10 +44,20 @@ class EcosZooKeeper(private val client: CuratorFramework) {
         }
     }
 
-    fun deleteValue(path: String) {
-        client.delete()
-            .deletingChildrenIfNeeded()
-            .forPath(path)
+    @JvmOverloads
+    fun deleteValue(path: String, recursive: Boolean = false) {
+        try {
+            if (recursive) {
+                client.delete()
+                    .deletingChildrenIfNeeded()
+                    .forPath(path)
+            } else {
+                client.delete()
+                    .forPath(path)
+            }
+        } catch (e: KeeperException.NoNodeException) {
+            // already deleted. do nothing
+        }
     }
 
     fun <T : Any> getValue(path: String, type: Class<T>): T? {

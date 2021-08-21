@@ -1,14 +1,12 @@
 package ru.citeck.ecos.zookeeper
 
+import ecos.curator.org.apache.zookeeper.KeeperException
 import ecos.org.apache.curator.RetryPolicy
 import ecos.org.apache.curator.framework.CuratorFrameworkFactory
 import ecos.org.apache.curator.retry.RetryForever
 import ecos.org.apache.curator.test.TestingServer
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.*
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ZooKeeperTest {
@@ -66,6 +64,14 @@ class ZooKeeperTest {
         service.deleteValue(keyToRemove)
 
         assertThat(getChildrenByPath("/aa/bb")).isEqualTo(expectedChildrenMap)
+
+        // should not throw exception
+        service.deleteValue("/unknown/path/abc")
+
+        assertThrows<KeeperException.NotEmptyException> {
+            service.deleteValue("/aa/bb")
+        }
+        service.deleteValue("/aa/bb", true)
     }
 
     private fun getChildrenByPath(path: String): Map<String, TestData> {
