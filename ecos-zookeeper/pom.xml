@@ -44,4 +44,15 @@
 
     </dependencies>
 
+    <build>
+        <plugins>
+
+            <plugin>
+                <groupId>com.github.gantsign.maven</groupId>
+                <artifactId>ktlint-maven-plugin</artifactId>
+            </plugin>
+
+        </plugins>
+    </build>
+
 </project>

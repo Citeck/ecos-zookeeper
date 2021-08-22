@@ -13,7 +13,7 @@ class ZooKeeperTest {
 
     private var zkServer: TestingServer? = null
 
-    private lateinit var service : EcosZooKeeper
+    private lateinit var service: EcosZooKeeper
 
     @BeforeAll
     fun setUp() {
