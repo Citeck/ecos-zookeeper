@@ -7,7 +7,7 @@
 
     <groupId>ru.citeck.ecos.zookeeper</groupId>
     <artifactId>ecos-zookeeper-project</artifactId>
-    <version>1.2.0</version>
+    <version>1.2.2</version>
     <packaging>pom</packaging>
 
     <properties>
@@ -21,8 +21,9 @@
 
         <amqp-client.version>5.4.3</amqp-client.version>
 
-        <junit.version>5.4.0</junit.version>
+        <junit.version>5.7.2</junit.version>
         <slf4j.version>1.7.28</slf4j.version>
+        <assertj-core.version>3.19.0</assertj-core.version>
 
         <kotlin.version>1.5.21</kotlin.version>
         <kotlin.logging.version>1.12.5</kotlin.logging.version>
@@ -90,6 +91,13 @@
         </dependency>
 
         <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>1.7.2</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
             <version>${junit.version}</version>
@@ -117,9 +125,38 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>${assertj-core.version}</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
+
+        <pluginManagement>
+
+            <plugins>
+
+                <plugin>
+                    <groupId>com.github.gantsign.maven</groupId>
+                    <artifactId>ktlint-maven-plugin</artifactId>
+                    <version>1.7.0</version>
+                    <executions>
+                        <execution>
+                            <id>format</id>
+                            <goals>
+                                <goal>format</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+
+            </plugins>
+
+        </pluginManagement>
 
         <plugins>
 

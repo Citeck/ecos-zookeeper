@@ -10,7 +10,7 @@
     <parent>
         <groupId>ru.citeck.ecos.zookeeper</groupId>
         <artifactId>ecos-zookeeper-project</artifactId>
-        <version>1.2.0</version>
+        <version>1.2.2</version>
     </parent>
 
     <properties>
@@ -43,5 +43,16 @@
         </dependency>
 
     </dependencies>
+
+    <build>
+        <plugins>
+
+            <plugin>
+                <groupId>com.github.gantsign.maven</groupId>
+                <artifactId>ktlint-maven-plugin</artifactId>
+            </plugin>
+
+        </plugins>
+    </build>
 
 </project>
