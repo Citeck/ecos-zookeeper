@@ -60,5 +60,4 @@ open class ZooKeeperConfig {
     open fun ecosZookeeper(curatorFramework: CuratorFramework): EcosZooKeeper {
         return EcosZooKeeper(curatorFramework).withNamespace(namespace)
     }
-
 }
