@@ -8,11 +8,13 @@ import ecos.org.apache.curator.framework.api.CuratorWatcher
 import mu.KotlinLogging
 import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.json.Json
+import ru.citeck.ecos.zookeeper.encoding.ContentEncoding
 import ru.citeck.ecos.zookeeper.encoding.ZkContentEncoder
+import ru.citeck.ecos.zookeeper.mapping.ContentFormat
 import ru.citeck.ecos.zookeeper.mapping.ZkContentMapper
 import ru.citeck.ecos.zookeeper.value.ZkNodeContent
+import ru.citeck.ecos.zookeeper.value.ZkNodePlainValue
 import ru.citeck.ecos.zookeeper.value.ZkNodeValue
-import ru.citeck.ecos.zookeeper.value.ZkNodeValueOld
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -77,32 +79,38 @@ class EcosZooKeeper(
 
         if (current == null) {
 
-            val newValue = ZkNodeValue(
-                options.format,
-                options.encoding,
-                createContentData(value, now, now)
-            )
-
             getClient().create()
                 .creatingParentContainersIfNeeded()
                 .withMode(if (persistent) CreateMode.PERSISTENT else CreateMode.EPHEMERAL)
                 .withACL(ZooDefs.Ids.OPEN_ACL_UNSAFE)
-                .forPath(path, zkNodeCborMapper.toBytes(newValue))
+                .forPath(path, createNodeValue(value, now, now))
         } else {
 
             val currentValue = getValue(path, ZkNodeContent::class.java)
                 ?: error("Existence was checked but null value was returned by path $path")
 
+            getClient().setData()
+                .withVersion(current.version)
+                .forPath(path, createNodeValue(value, currentValue.created, now))
+        }
+    }
+
+    private fun createNodeValue(value: Any?, created: Instant, modified: Instant): ByteArray {
+        val bytes = if (options.format == ContentFormat.JSON && options.encoding == ContentEncoding.PLAIN) {
+            // legacy mode
+            Json.mapper.toBytes(ZkNodePlainValue(created, modified, DataValue.create(value)))
+        } else {
             val newValue = ZkNodeValue(
                 options.format,
                 options.encoding,
-                createContentData(value, currentValue.created, now)
+                createContentData(value, created, modified)
             )
-
-            getClient().setData()
-                .withVersion(current.version)
-                .forPath(path, zkNodeCborMapper.toBytes(newValue))
+            zkNodeCborMapper.toBytes(newValue)
         }
+        return bytes ?: error(
+            "Error while conversion of ZkNodeValue to bytes. " +
+                "Created: $created Value: $value Options: $options"
+        )
     }
 
     private fun createContentData(value: Any?, created: Instant, modified: Instant): ByteArray {
@@ -145,12 +153,17 @@ class EcosZooKeeper(
         }
 
         if (isRawJsonValue(data)) {
-            val oldValue = Json.mapper.read(data, ZkNodeValueOld::class.java) ?: return null
+            val plainValueObj = Json.mapper.read(data, DataValue::class.java) ?: return null
+            val plainValue = ZkNodePlainValue(
+                plainValueObj.get("created").getAs(Instant::class.java) ?: Instant.EPOCH,
+                plainValueObj.get("modified").getAs(Instant::class.java) ?: Instant.EPOCH,
+                plainValueObj.get("data").getAs(DataValue::class.java) ?: DataValue.NULL
+            )
             return if (type == ZkNodeContent::class.java) {
                 @Suppress("UNCHECKED_CAST")
-                ZkNodeContent(oldValue.data, oldValue.created, oldValue.modified) as? T
+                ZkNodeContent(plainValue.data, plainValue.created, plainValue.modified) as? T
             } else {
-                oldValue.data.getAs(type)
+                plainValue.data.getAs(type)
             }
         }
 
