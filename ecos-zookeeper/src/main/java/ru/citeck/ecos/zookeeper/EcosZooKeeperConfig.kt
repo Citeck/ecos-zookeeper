@@ -2,7 +2,6 @@ package ru.citeck.ecos.zookeeper
 
 import mu.KotlinLogging
 import ru.citeck.ecos.commons.data.ObjectData
-import ru.citeck.ecos.commons.utils.LibsUtils
 import ru.citeck.ecos.zookeeper.encoding.ContentEncoding
 import ru.citeck.ecos.zookeeper.mapping.ContentFormat
 
@@ -17,27 +16,11 @@ data class EcosZooKeeperConfig(
         val DEFAULT = EcosZooKeeperConfig(
             EcosZooKeeper.DEFAULT_NAMESPACE,
             ContentFormat.JSON,
-            evalDefaultEncoding(),
+            ContentEncoding.PLAIN,
             ObjectData.create()
         )
 
-        private const val ZSTD_CLASS_TO_CHECK = "com.github.luben.zstd.ZstdOutputStream"
-        private val SUPPORTED_ZSTD_LIBS = listOf("com.github.luben:zstd-jni")
-
         private val log = KotlinLogging.logger {}
-
-        private fun evalDefaultEncoding(): ContentEncoding {
-            return if (LibsUtils.isClassPresent(ZSTD_CLASS_TO_CHECK)) {
-                ContentEncoding.ZSTD
-            } else {
-                log.warn {
-                    "ZSTD library is not found in classpath. " +
-                        "ZooKeeper values will be saved without compression. " +
-                        "Supported ZSTD libraries: $SUPPORTED_ZSTD_LIBS"
-                }
-                ContentEncoding.PLAIN
-            }
-        }
     }
 
     fun copy(action: Builder.() -> Unit): EcosZooKeeperConfig {

@@ -21,6 +21,7 @@ import ru.citeck.ecos.commons.json.JsonMapper
 import ru.citeck.ecos.zookeeper.encoding.ContentEncoding
 import ru.citeck.ecos.zookeeper.mapping.ContentFormat
 import ru.citeck.ecos.zookeeper.value.ZkNodeContent
+import ru.citeck.ecos.zookeeper.value.ZkNodePlainValue
 import ru.citeck.ecos.zookeeper.value.ZkNodeValue
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -165,7 +166,16 @@ class ZooKeeperTest {
         }
         val readZkNodeValue: (fmtEnc: FormatEncoding) -> ZkNodeValue = { fmtEnc ->
             val contentBytes = client.data.forPath("/ecos$pathPrefix${fmtEnc.id}")
-            cborMapper.read(contentBytes, ZkNodeValue::class.java)!!
+            if (contentBytes[0].toInt().toChar() == '{') {
+                val plainValue = Json.mapper.read(contentBytes, ZkNodePlainValue::class.java)!!
+                val content = ObjectData.create()
+                    .set(ZkNodeContent.Field.VALUE.shortName, plainValue.data)
+                    .set(ZkNodeContent.Field.CREATED.shortName, plainValue.created)
+                    .set(ZkNodeContent.Field.MODIFIED.shortName, plainValue.modified)
+                ZkNodeValue(ContentFormat.JSON, ContentEncoding.PLAIN, Json.mapper.toBytes(content)!!)
+            } else {
+                cborMapper.read(contentBytes, ZkNodeValue::class.java)!!
+            }
         }
 
         for (key in services.keys) {
