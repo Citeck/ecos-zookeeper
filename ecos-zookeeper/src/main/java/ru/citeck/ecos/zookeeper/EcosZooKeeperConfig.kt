@@ -1,0 +1,71 @@
+package ru.citeck.ecos.zookeeper
+
+import ru.citeck.ecos.commons.data.ObjectData
+import ru.citeck.ecos.zookeeper.encoding.ContentEncoding
+import ru.citeck.ecos.zookeeper.mapping.ContentFormat
+
+data class EcosZooKeeperConfig(
+    val namespace: String,
+    val format: ContentFormat,
+    val encoding: ContentEncoding,
+    val encodingOptions: ObjectData
+) {
+    companion object {
+        val DEFAULT = EcosZooKeeperConfig(
+            EcosZooKeeper.DEFAULT_NAMESPACE,
+            ContentFormat.JSON,
+            ContentEncoding.ZSTD,
+            ObjectData.create()
+        )
+    }
+
+    fun copy(action: Builder.() -> Unit): EcosZooKeeperConfig {
+        val builder = Builder(this)
+        action(builder)
+        return builder.build()
+    }
+
+    class Builder() {
+
+        var namespace: String = DEFAULT.namespace
+        var format: ContentFormat = DEFAULT.format
+        var encoding: ContentEncoding = DEFAULT.encoding
+        var encodingOptions: ObjectData = ObjectData.create()
+
+        constructor(base: EcosZooKeeperConfig) : this() {
+            this.namespace = base.namespace
+            this.format = base.format
+            this.encoding = base.encoding
+            this.encodingOptions = base.encodingOptions.deepCopy()
+        }
+
+        fun withNamespace(namespace: String?): Builder {
+            this.namespace = namespace ?: DEFAULT.namespace
+            return this
+        }
+
+        fun withFormat(format: ContentFormat?): Builder {
+            this.format = format ?: DEFAULT.format
+            return this
+        }
+
+        fun withEncoding(encoding: ContentEncoding?): Builder {
+            this.encoding = encoding ?: DEFAULT.encoding
+            return this
+        }
+
+        fun withEncodingOptions(encodingOptions: Any?): Builder {
+            this.encodingOptions = encodingOptions?.let { ObjectData.create(it) } ?: ObjectData.create()
+            return this
+        }
+
+        fun build(): EcosZooKeeperConfig {
+            return EcosZooKeeperConfig(
+                namespace = namespace,
+                format = format,
+                encoding = encoding,
+                encodingOptions = encodingOptions
+            )
+        }
+    }
+}

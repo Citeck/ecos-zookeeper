@@ -1,5 +1,6 @@
 package ru.citeck.ecos.zookeeper
 
+import ecos.com.fasterxml.jackson210.dataformat.cbor.CBORFactory
 import ecos.curator.org.apache.zookeeper.*
 import ecos.curator.org.apache.zookeeper.data.Stat
 import ecos.org.apache.curator.framework.CuratorFramework
@@ -7,16 +8,44 @@ import ecos.org.apache.curator.framework.api.CuratorWatcher
 import mu.KotlinLogging
 import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.json.Json
+import ru.citeck.ecos.zookeeper.encoding.ZkContentEncoder
+import ru.citeck.ecos.zookeeper.mapping.ZkContentMapper
+import ru.citeck.ecos.zookeeper.value.ZkNodeContent
+import ru.citeck.ecos.zookeeper.value.ZkNodeValue
+import ru.citeck.ecos.zookeeper.value.ZkNodeValueOld
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-class EcosZooKeeper(private val innerClient: CuratorFramework) {
+class EcosZooKeeper(
+    client: CuratorFramework,
+    val options: EcosZooKeeperConfig = EcosZooKeeperConfig.DEFAULT
+) {
 
     companion object {
+
+        const val DEFAULT_NAMESPACE = "ecos"
+
         private val log = KotlinLogging.logger {}
+
+        private const val RAW_JSON_BYTES_BEGINING = "{\""
+
+        private val zkNodeCborMapper = Json.newMapper {
+            setFactory(CBORFactory())
+            add(ZkNodeValue.Serializer())
+            add(ZkNodeValue.Deserializer())
+        }
+
+        private val contentMapper = ZkContentMapper()
+        private val contentEncoder = ZkContentEncoder()
     }
 
     private var initialized = false
+
+    private val encoderOptions = contentEncoder.parseOptions(options.encoding, options.encodingOptions)
+    private val innerClient: CuratorFramework = client.usingNamespace(options.namespace)
 
     private fun getClient(): CuratorFramework {
         if (!initialized) {
@@ -31,7 +60,12 @@ class EcosZooKeeper(private val innerClient: CuratorFramework) {
     }
 
     fun withNamespace(ns: String): EcosZooKeeper {
-        return EcosZooKeeper(innerClient.usingNamespace(ns))
+        return withOptions { this.withNamespace(ns) }
+    }
+
+    fun withOptions(options: EcosZooKeeperConfig.Builder.() -> Unit): EcosZooKeeper {
+        val newOptions = this.options.copy(options)
+        return EcosZooKeeper(innerClient, newOptions)
     }
 
     @JvmOverloads
@@ -43,24 +77,43 @@ class EcosZooKeeper(private val innerClient: CuratorFramework) {
 
         if (current == null) {
 
-            val newValue = ZNodeValue(now, now, DataValue.create(value))
+            val newValue = ZkNodeValue(
+                options.format,
+                options.encoding,
+                createContentData(value, now, now)
+            )
 
             getClient().create()
                 .creatingParentContainersIfNeeded()
                 .withMode(if (persistent) CreateMode.PERSISTENT else CreateMode.EPHEMERAL)
                 .withACL(ZooDefs.Ids.OPEN_ACL_UNSAFE)
-                .forPath(path, Json.mapper.toBytes(newValue))
+                .forPath(path, zkNodeCborMapper.toBytes(newValue))
         } else {
 
-            val currentValue = getValue(path, ZNodeValue::class.java)
+            val currentValue = getValue(path, ZkNodeContent::class.java)
                 ?: error("Existence was checked but null value was returned by path $path")
 
-            val newValue = ZNodeValue(currentValue.created, now, DataValue.create(value))
+            val newValue = ZkNodeValue(
+                options.format,
+                options.encoding,
+                createContentData(value, currentValue.created, now)
+            )
 
             getClient().setData()
                 .withVersion(current.version)
-                .forPath(path, Json.mapper.toBytes(newValue))
+                .forPath(path, zkNodeCborMapper.toBytes(newValue))
         }
+    }
+
+    private fun createContentData(value: Any?, created: Instant, modified: Instant): ByteArray {
+        val content = ZkNodeContent(DataValue.create(value), created, modified)
+        val bout = ByteArrayOutputStream()
+        contentMapper.writeValue(
+            content,
+            options.format,
+            contentEncoder.enhanceOutput(bout, options.encoding, encoderOptions)
+        )
+        return bout.toByteArray()
     }
 
     @JvmOverloads
@@ -87,17 +140,45 @@ class EcosZooKeeper(private val innerClient: CuratorFramework) {
         }
 
         val data = getClient().data.forPath(path)
-        if (data.isEmpty()) {
+        if (data == null || data.isEmpty()) {
             return null
         }
-        val znodeValue = Json.mapper.read(data, ZNodeValue::class.java)
 
-        if (type == ZNodeValue::class.java) {
-            @Suppress("UNCHECKED_CAST")
-            return znodeValue as T?
+        if (isRawJsonValue(data)) {
+            val oldValue = Json.mapper.read(data, ZkNodeValueOld::class.java) ?: return null
+            return if (type == ZkNodeContent::class.java) {
+                @Suppress("UNCHECKED_CAST")
+                ZkNodeContent(oldValue.data, oldValue.created, oldValue.modified) as? T
+            } else {
+                oldValue.data.getAs(type)
+            }
         }
 
-        return znodeValue?.data?.getAs(type)
+        val zNodeValue = zkNodeCborMapper.read(data, ZkNodeValue::class.java) ?: return null
+
+        var contentInStream: InputStream = ByteArrayInputStream(zNodeValue.content)
+        contentInStream = contentEncoder.enhanceInput(contentInStream, zNodeValue.encoding)
+        val content = contentMapper.readValue(contentInStream, zNodeValue.format)
+
+        if (type == ZkNodeContent::class.java) {
+            @Suppress("UNCHECKED_CAST")
+            return content as? T
+        }
+
+        return content.value.getAs(type)
+    }
+
+    private fun isRawJsonValue(bytes: ByteArray): Boolean {
+        if (bytes.size < RAW_JSON_BYTES_BEGINING.length) {
+            return false
+        }
+        var idx = 0
+        for (char in RAW_JSON_BYTES_BEGINING) {
+            if (bytes[idx++].toUInt() != char.code.toUInt()) {
+                return false
+            }
+        }
+        return true
     }
 
     /**
