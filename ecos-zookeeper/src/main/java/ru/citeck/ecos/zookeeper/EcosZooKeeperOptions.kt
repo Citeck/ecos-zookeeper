@@ -5,7 +5,7 @@ import ru.citeck.ecos.commons.data.ObjectData
 import ru.citeck.ecos.zookeeper.encoding.ContentEncoding
 import ru.citeck.ecos.zookeeper.mapping.ContentFormat
 
-data class EcosZooKeeperConfig(
+data class EcosZooKeeperOptions(
     val namespace: String,
     val format: ContentFormat,
     val encoding: ContentEncoding,
@@ -13,8 +13,8 @@ data class EcosZooKeeperConfig(
 ) {
     companion object {
 
-        val DEFAULT = EcosZooKeeperConfig(
-            EcosZooKeeper.DEFAULT_NAMESPACE,
+        val DEFAULT = EcosZooKeeperOptions(
+            "ecos",
             ContentFormat.JSON,
             ContentEncoding.PLAIN,
             ObjectData.create()
@@ -23,7 +23,7 @@ data class EcosZooKeeperConfig(
         private val log = KotlinLogging.logger {}
     }
 
-    fun copy(action: Builder.() -> Unit): EcosZooKeeperConfig {
+    fun copy(action: Builder.() -> Unit): EcosZooKeeperOptions {
         val builder = Builder(this)
         action(builder)
         return builder.build()
@@ -36,7 +36,7 @@ data class EcosZooKeeperConfig(
         var encoding: ContentEncoding = DEFAULT.encoding
         var encodingOptions: ObjectData = ObjectData.create()
 
-        constructor(base: EcosZooKeeperConfig) : this() {
+        constructor(base: EcosZooKeeperOptions) : this() {
             this.namespace = base.namespace
             this.format = base.format
             this.encoding = base.encoding
@@ -63,8 +63,8 @@ data class EcosZooKeeperConfig(
             return this
         }
 
-        fun build(): EcosZooKeeperConfig {
-            return EcosZooKeeperConfig(
+        fun build(): EcosZooKeeperOptions {
+            return EcosZooKeeperOptions(
                 namespace = namespace,
                 format = format,
                 encoding = encoding,

@@ -15,7 +15,7 @@
 
     <properties>
 
-        <ecos.curator.version>5.2.0</ecos.curator.version>
+        <ecos.curator.version>5.2.0.1</ecos.curator.version>
 
     </properties>
 

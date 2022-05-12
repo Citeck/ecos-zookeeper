@@ -4,7 +4,9 @@ import ecos.com.fasterxml.jackson210.dataformat.cbor.CBORFactory
 import ecos.curator.org.apache.zookeeper.*
 import ecos.curator.org.apache.zookeeper.data.Stat
 import ecos.org.apache.curator.framework.CuratorFramework
+import ecos.org.apache.curator.framework.CuratorFrameworkFactory
 import ecos.org.apache.curator.framework.api.CuratorWatcher
+import ecos.org.apache.curator.retry.ExponentialBackoffRetry
 import mu.KotlinLogging
 import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.json.Json
@@ -18,17 +20,18 @@ import ru.citeck.ecos.zookeeper.value.ZkNodeValue
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
-class EcosZooKeeper(
-    client: CuratorFramework,
-    val options: EcosZooKeeperConfig = EcosZooKeeperConfig.DEFAULT
+class EcosZooKeeper private constructor(
+    private val props: EcosZooKeeperProperties,
+    private val options: EcosZooKeeperOptions = EcosZooKeeperOptions.DEFAULT,
+    private val innerClient: CuratorFramework
 ) {
 
     companion object {
-
-        const val DEFAULT_NAMESPACE = "ecos"
 
         private val log = KotlinLogging.logger {}
 
@@ -42,21 +45,51 @@ class EcosZooKeeper(
 
         private val contentMapper = ZkContentMapper()
         private val contentEncoder = ZkContentEncoder()
+
+        private fun createClient(props: EcosZooKeeperProperties): CuratorFramework {
+            val retryPolicy = ExponentialBackoffRetry(
+                Duration.ofSeconds(2).toMillis().toInt(),
+                100
+            )
+            val connectString = "${props.host}:${props.port}"
+            log.info {
+                "\n" +
+                    "================Ecos Zookeeper Init======================\n" +
+                    "URL: $connectString\n" +
+                    "Startup will be stopped until Zookeeper will be available\n" +
+                    "=========================================================\n"
+            }
+            val client = CuratorFrameworkFactory
+                .newClient(connectString, retryPolicy)
+            client.start()
+            return client
+        }
     }
 
-    private var initialized = false
+    private var initialized = AtomicBoolean()
 
     private val encoderOptions = contentEncoder.parseOptions(options.encoding, options.encodingOptions)
-    private val innerClient: CuratorFramework = client.usingNamespace(options.namespace)
+
+    @JvmOverloads
+    constructor(
+        props: EcosZooKeeperProperties,
+        options: EcosZooKeeperOptions = EcosZooKeeperOptions.DEFAULT
+    ) : this(
+        props, options, createClient(props)
+    )
+
+    private constructor(parent: EcosZooKeeper, options: EcosZooKeeperOptions) : this(
+        parent.props, options, parent.innerClient
+    )
 
     private fun getClient(): CuratorFramework {
-        if (!initialized) {
+        if (!initialized.get()) {
             if (!innerClient.blockUntilConnected(2, TimeUnit.SECONDS)) {
                 do {
                     log.warn { "Waiting until ZooKeeper will be available" }
                 } while (!innerClient.blockUntilConnected(1, TimeUnit.MINUTES))
             }
-            initialized = true
+            initialized.set(true)
         }
         return innerClient
     }
@@ -65,9 +98,9 @@ class EcosZooKeeper(
         return withOptions { this.withNamespace(ns) }
     }
 
-    fun withOptions(options: EcosZooKeeperConfig.Builder.() -> Unit): EcosZooKeeper {
+    fun withOptions(options: EcosZooKeeperOptions.Builder.() -> Unit): EcosZooKeeper {
         val newOptions = this.options.copy(options)
-        return EcosZooKeeper(innerClient, newOptions)
+        return EcosZooKeeper(this, newOptions)
     }
 
     @JvmOverloads
@@ -241,5 +274,9 @@ class EcosZooKeeper(
                     action.invoke(getValue(event.path, type))
                 }
             ).forPath(path)
+    }
+
+    fun getOptions(): EcosZooKeeperOptions {
+        return options
     }
 }
