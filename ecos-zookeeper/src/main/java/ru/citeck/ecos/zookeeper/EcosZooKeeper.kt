@@ -6,7 +6,7 @@ import ecos.curator.org.apache.zookeeper.data.Stat
 import ecos.org.apache.curator.framework.CuratorFramework
 import ecos.org.apache.curator.framework.CuratorFrameworkFactory
 import ecos.org.apache.curator.framework.api.CuratorWatcher
-import ecos.org.apache.curator.retry.ExponentialBackoffRetry
+import ecos.org.apache.curator.retry.RetryForever
 import mu.KotlinLogging
 import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.json.Json
@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class EcosZooKeeper private constructor(
     private val props: EcosZooKeeperProperties,
     private val options: EcosZooKeeperOptions = EcosZooKeeperOptions.DEFAULT,
-    private val innerClient: CuratorFramework
+    innerClient: CuratorFramework
 ) {
 
     companion object {
@@ -47,11 +47,13 @@ class EcosZooKeeper private constructor(
         private val contentEncoder = ZkContentEncoder()
 
         private fun createClient(props: EcosZooKeeperProperties): CuratorFramework {
-            val retryPolicy = ExponentialBackoffRetry(
-                Duration.ofSeconds(2).toMillis().toInt(),
-                100
+            return createClient("${props.host}:${props.port}", props)
+        }
+
+        private fun createClient(connectString: String, props: EcosZooKeeperProperties): CuratorFramework {
+            val retryPolicy = RetryForever(
+                Duration.ofSeconds(5).toMillis().toInt()
             )
-            val connectString = "${props.host}:${props.port}"
             log.info {
                 "\n" +
                     "================Ecos Zookeeper Init======================\n" +
@@ -67,6 +69,7 @@ class EcosZooKeeper private constructor(
     }
 
     private var initialized = AtomicBoolean()
+    private val innerClient: CuratorFramework = innerClient.usingNamespace(options.namespace)
 
     private val encoderOptions = contentEncoder.parseOptions(options.encoding, options.encodingOptions)
 
@@ -78,11 +81,25 @@ class EcosZooKeeper private constructor(
         props, options, createClient(props)
     )
 
-    private constructor(parent: EcosZooKeeper, options: EcosZooKeeperOptions) : this(
-        parent.props, options, parent.innerClient
+    @JvmOverloads
+    constructor(
+        connectString: String,
+        props: EcosZooKeeperProperties = EcosZooKeeperProperties(),
+        options: EcosZooKeeperOptions = EcosZooKeeperOptions.DEFAULT
+    ) : this(
+        props, options, createClient(connectString, props)
     )
 
-    private fun getClient(): CuratorFramework {
+    private constructor(
+        parent: EcosZooKeeper,
+        options: EcosZooKeeperOptions
+    ) : this(
+        parent.props,
+        options,
+        parent.innerClient
+    )
+
+    fun getClient(): CuratorFramework {
         if (!initialized.get()) {
             if (!innerClient.blockUntilConnected(2, TimeUnit.SECONDS)) {
                 do {

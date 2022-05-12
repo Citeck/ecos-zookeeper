@@ -5,10 +5,7 @@ import ecos.com.fasterxml.jackson210.dataformat.cbor.CBORFactory
 import ecos.curator.org.apache.zookeeper.CreateMode
 import ecos.curator.org.apache.zookeeper.KeeperException
 import ecos.curator.org.apache.zookeeper.ZooDefs
-import ecos.org.apache.curator.RetryPolicy
 import ecos.org.apache.curator.framework.CuratorFramework
-import ecos.org.apache.curator.framework.CuratorFrameworkFactory
-import ecos.org.apache.curator.retry.RetryForever
 import ecos.org.apache.curator.test.TestingServer
 import mu.KotlinLogging
 import org.assertj.core.api.Assertions.assertThat
@@ -42,14 +39,8 @@ class ZooKeeperTest {
     @BeforeAll
     fun setUp() {
         zkServer = TestingServer()
-
-        val retryPolicy: RetryPolicy = RetryForever(7_000)
-
-        client = CuratorFrameworkFactory
-            .newClient(zkServer!!.connectString, retryPolicy)
-        client.start()
-
-        service = EcosZooKeeper(client)
+        service = EcosZooKeeper(zkServer!!.connectString)
+        client = service.getClient().usingNamespace("")
     }
 
     @AfterAll

@@ -19,8 +19,6 @@ data class EcosZooKeeperOptions(
             ContentEncoding.PLAIN,
             ObjectData.create()
         )
-
-        private val log = KotlinLogging.logger {}
     }
 
     fun copy(action: Builder.() -> Unit): EcosZooKeeperOptions {
