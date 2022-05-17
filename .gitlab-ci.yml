@@ -18,6 +18,7 @@ mirror:
     - echo $GITHUB_MIRROR_PUBLIC > ~/.ssh/id_rsa.pub               
     - ssh-keyscan -t rsa,dsa,ecdsa github.com >> ~/.ssh/known_hosts
     - chmod -R go-rwx ~/.ssh
+    - ssh -vvvv -i ~/.ssh/id_rsa github.com
     - git remote add mirror $TARGET_REPO
     - git remote show mirror
     - git remote -v 
