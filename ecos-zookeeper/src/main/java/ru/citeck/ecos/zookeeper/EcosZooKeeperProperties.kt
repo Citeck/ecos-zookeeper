@@ -1,6 +1,6 @@
 package ru.citeck.ecos.zookeeper
 
 class EcosZooKeeperProperties(
-    val host: String = "zookeeper-app",
+    val host: String = "localhost",
     val port: Int = 2181
 )
