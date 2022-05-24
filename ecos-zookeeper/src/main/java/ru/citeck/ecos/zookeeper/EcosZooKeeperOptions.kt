@@ -1,6 +1,5 @@
 package ru.citeck.ecos.zookeeper
 
-import mu.KotlinLogging
 import ru.citeck.ecos.commons.data.ObjectData
 import ru.citeck.ecos.zookeeper.encoding.ContentEncoding
 import ru.citeck.ecos.zookeeper.mapping.ContentFormat

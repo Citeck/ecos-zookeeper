@@ -1,5 +1,7 @@
 package ru.citeck.ecos.zookeeper
 
+import ecos.com.fasterxml.jackson210.databind.JsonNode
+import ecos.com.fasterxml.jackson210.databind.node.NullNode
 import ecos.com.fasterxml.jackson210.dataformat.cbor.CBORFactory
 import ecos.curator.org.apache.zookeeper.*
 import ecos.curator.org.apache.zookeeper.data.Stat
@@ -137,30 +139,27 @@ class EcosZooKeeper private constructor(
         } else {
 
             val currentValue = getValue(path, ZkNodeContent::class.java)
-                ?: error("Existence was checked but null value was returned by path $path")
+            val created = currentValue?.created ?: now
 
             getClient().setData()
                 .withVersion(current.version)
-                .forPath(path, createNodeValue(value, currentValue.created, now))
+                .forPath(path, createNodeValue(value, created, now))
         }
     }
 
     private fun createNodeValue(value: Any?, created: Instant, modified: Instant): ByteArray {
         val bytes = if (options.format == ContentFormat.JSON && options.encoding == ContentEncoding.PLAIN) {
             // legacy mode
-            Json.mapper.toBytes(ZkNodePlainValue(created, modified, DataValue.create(value)))
+            Json.mapper.toBytesNotNull(ZkNodePlainValue(created, modified, DataValue.create(value)))
         } else {
             val newValue = ZkNodeValue(
                 options.format,
                 options.encoding,
                 createContentData(value, created, modified)
             )
-            zkNodeCborMapper.toBytes(newValue)
+            zkNodeCborMapper.toBytesNotNull(newValue)
         }
-        return bytes ?: error(
-            "Error while conversion of ZkNodeValue to bytes. " +
-                "Created: $created Value: $value Options: $options"
-        )
+        return bytes
     }
 
     private fun createContentData(value: Any?, created: Instant, modified: Instant): ByteArray {
@@ -190,6 +189,10 @@ class EcosZooKeeper private constructor(
         }
     }
 
+    fun getValue(path: String): DataValue {
+        return getValue(path, DataValue::class.java) ?: DataValue.NULL
+    }
+
     fun <T : Any> getValue(path: String, type: Class<T>): T? {
 
         if (type == Unit::class.java) {
@@ -197,27 +200,40 @@ class EcosZooKeeper private constructor(
             return Unit as T
         }
 
-        val data = getClient().data.forPath(path)
+        val existsStat: Stat? = getClient().checkExists().forPath(path)
+        var data: ByteArray? = null
+        if (existsStat != null) {
+            data = getClient().data.forPath(path)
+        }
         if (data == null || data.isEmpty()) {
+            if (type.isAssignableFrom(DataValue::class.java)) {
+                return type.cast(DataValue.NULL)
+            }
+            if (type.isAssignableFrom(JsonNode::class.java)) {
+                return type.cast(NullNode.getInstance())
+            }
             return null
         }
 
         if (isRawJsonValue(data)) {
-            val plainValueObj = Json.mapper.read(data, DataValue::class.java) ?: return null
+            val plainValueObj = Json.mapper.readNotNull(data, DataValue::class.java)
             val plainValue = ZkNodePlainValue(
-                plainValueObj.get("created").getAs(Instant::class.java) ?: Instant.EPOCH,
-                plainValueObj.get("modified").getAs(Instant::class.java) ?: Instant.EPOCH,
-                plainValueObj.get("data").getAs(DataValue::class.java) ?: DataValue.NULL
+                plainValueObj["created"].getAs(Instant::class.java) ?: Instant.EPOCH,
+                plainValueObj["modified"].getAs(Instant::class.java) ?: Instant.EPOCH,
+                plainValueObj["data"].getAs(DataValue::class.java) ?: DataValue.NULL
             )
             return if (type == ZkNodeContent::class.java) {
                 @Suppress("UNCHECKED_CAST")
-                ZkNodeContent(plainValue.data, plainValue.created, plainValue.modified) as? T
+                ZkNodeContent(plainValue.data, plainValue.created, plainValue.modified) as T
             } else {
-                plainValue.data.getAs(type)
+                if (plainValue.data.isNull()) {
+                    return null
+                }
+                plainValue.data.getAsNotNull(type)
             }
         }
 
-        val zNodeValue = zkNodeCborMapper.read(data, ZkNodeValue::class.java) ?: return null
+        val zNodeValue = zkNodeCborMapper.readNotNull(data, ZkNodeValue::class.java)
 
         var contentInStream: InputStream = ByteArrayInputStream(zNodeValue.content)
         contentInStream = contentEncoder.enhanceInput(contentInStream, zNodeValue.encoding)
@@ -228,7 +244,7 @@ class EcosZooKeeper private constructor(
             return content as? T
         }
 
-        return content.value.getAs(type)
+        return content.value.getAsNotNull(type)
     }
 
     private fun isRawJsonValue(bytes: ByteArray): Boolean {
@@ -257,11 +273,16 @@ class EcosZooKeeper private constructor(
         }
     }
 
-    fun <T : Any> getChildren(path: String, type: Class<T>): Map<String, T?> {
+    fun <T : Any> getChildren(path: String, type: Class<T>): Map<String, T> {
         val childrenKeys = getChildren(path)
-        val result = linkedMapOf<String, T?>()
+        val result = linkedMapOf<String, T>()
         for (key in childrenKeys) {
-            result[key] = getValue("$path/$key", type)
+            val childPath = if (path == "/") {
+                "/$key"
+            } else {
+                "$path/$key"
+            }
+            getValue(childPath, type)?.let { result[key] = it }
         }
         return result
     }
