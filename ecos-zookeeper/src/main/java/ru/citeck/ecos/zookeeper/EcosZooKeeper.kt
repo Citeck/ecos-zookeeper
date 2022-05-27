@@ -1,5 +1,6 @@
 package ru.citeck.ecos.zookeeper
 
+import ecos.com.fasterxml.jackson210.databind.JavaType
 import ecos.com.fasterxml.jackson210.databind.JsonNode
 import ecos.com.fasterxml.jackson210.databind.node.NullNode
 import ecos.com.fasterxml.jackson210.dataformat.cbor.CBORFactory
@@ -194,8 +195,15 @@ class EcosZooKeeper private constructor(
     }
 
     fun <T : Any> getValue(path: String, type: Class<T>): T? {
+        return getValue(path, Json.mapper.getType(type))
+    }
 
-        if (type == Unit::class.java) {
+    fun <T : Any> getValue(path: String, type: JavaType): T? {
+
+        @Suppress("UNCHECKED_CAST")
+        val clazz: Class<T> = type.rawClass as Class<T>
+
+        if (clazz == Unit::class.java) {
             @Suppress("UNCHECKED_CAST")
             return Unit as T
         }
@@ -206,11 +214,11 @@ class EcosZooKeeper private constructor(
             data = getClient().data.forPath(path)
         }
         if (data == null || data.isEmpty()) {
-            if (type.isAssignableFrom(DataValue::class.java)) {
-                return type.cast(DataValue.NULL)
+            if (clazz.isAssignableFrom(DataValue::class.java)) {
+                return clazz.cast(DataValue.NULL)
             }
-            if (type.isAssignableFrom(JsonNode::class.java)) {
-                return type.cast(NullNode.getInstance())
+            if (clazz.isAssignableFrom(JsonNode::class.java)) {
+                return clazz.cast(NullNode.getInstance())
             }
             return null
         }
@@ -222,14 +230,14 @@ class EcosZooKeeper private constructor(
                 plainValueObj["modified"].getAs(Instant::class.java) ?: Instant.EPOCH,
                 plainValueObj["data"].getAs(DataValue::class.java) ?: DataValue.NULL
             )
-            return if (type == ZkNodeContent::class.java) {
+            return if (clazz == ZkNodeContent::class.java) {
                 @Suppress("UNCHECKED_CAST")
                 ZkNodeContent(plainValue.data, plainValue.created, plainValue.modified) as T
             } else {
                 if (plainValue.data.isNull()) {
                     return null
                 }
-                plainValue.data.getAsNotNull(type)
+                Json.mapper.convertNotNull(plainValue.data, type)
             }
         }
 
@@ -239,12 +247,12 @@ class EcosZooKeeper private constructor(
         contentInStream = contentEncoder.enhanceInput(contentInStream, zNodeValue.encoding)
         val content = contentMapper.readValue(contentInStream, zNodeValue.format)
 
-        if (type == ZkNodeContent::class.java) {
+        if (clazz == ZkNodeContent::class.java) {
             @Suppress("UNCHECKED_CAST")
             return content as? T
         }
 
-        return content.value.getAsNotNull(type)
+        return Json.mapper.convertNotNull(content.value, type)
     }
 
     private fun isRawJsonValue(bytes: ByteArray): Boolean {
