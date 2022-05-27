@@ -282,6 +282,11 @@ class EcosZooKeeper private constructor(
     }
 
     fun <T : Any> getChildren(path: String, type: Class<T>): Map<String, T> {
+        return getChildren(path, Json.mapper.getType(type))
+    }
+
+    fun <T : Any> getChildren(path: String, type: JavaType): Map<String, T> {
+
         val childrenKeys = getChildren(path)
         val result = linkedMapOf<String, T>()
         for (key in childrenKeys) {
@@ -290,7 +295,7 @@ class EcosZooKeeper private constructor(
             } else {
                 "$path/$key"
             }
-            getValue(childPath, type)?.let { result[key] = it }
+            getValue<T>(childPath, type)?.let { result[key] = it }
         }
         return result
     }
