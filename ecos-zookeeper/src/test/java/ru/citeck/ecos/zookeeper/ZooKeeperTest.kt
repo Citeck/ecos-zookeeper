@@ -12,17 +12,20 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.*
 import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.data.ObjectData
-import ru.citeck.ecos.commons.io.file.std.EcosStdFile
 import ru.citeck.ecos.commons.json.Json
 import ru.citeck.ecos.commons.json.JsonMapper
 import ru.citeck.ecos.zookeeper.encoding.ContentEncoding
+import ru.citeck.ecos.zookeeper.lock.EcosZkLockService
 import ru.citeck.ecos.zookeeper.mapping.ContentFormat
 import ru.citeck.ecos.zookeeper.value.ZkNodeContent
 import ru.citeck.ecos.zookeeper.value.ZkNodePlainValue
 import ru.citeck.ecos.zookeeper.value.ZkNodeValue
 import java.io.ByteArrayInputStream
-import java.io.File
+import java.time.Duration
 import java.time.Instant
+import kotlin.concurrent.thread
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ZooKeeperTest {
@@ -31,7 +34,7 @@ class ZooKeeperTest {
         private val log = KotlinLogging.logger {}
     }
 
-    private var zkServer: TestingServer? = null
+    private lateinit var zkServer: TestingServer
 
     private lateinit var service: EcosZooKeeper
     private lateinit var client: CuratorFramework
@@ -39,8 +42,22 @@ class ZooKeeperTest {
     @BeforeAll
     fun setUp() {
         zkServer = TestingServer()
-        service = EcosZooKeeper(zkServer!!.connectString)
+        service = EcosZooKeeper(zkServer.connectString)
         client = service.getClient().usingNamespace("")
+    }
+
+    @Test
+    fun abc() {
+        val typesService = service.withNamespace("ecos/model/types")
+
+        typesService.watchChildrenRecursive("/") { event ->
+            println(event)
+        }
+        Thread.sleep(1000)
+        typesService.setValue("/general-case", "abcd")
+        typesService.setValue("/general-case", "abcd123")
+        val children = typesService.getChildren("/")
+        println(children)
     }
 
     @AfterAll
@@ -126,7 +143,7 @@ class ZooKeeperTest {
         val pathPrefix = "/format-enc-test/"
 
         val data = Json.mapper.read(
-            EcosStdFile(File("./src/test/resources/test-data.json")),
+            ZooKeeperTest::class.java.getResourceAsStream("/test-data.json")!!.readBytes(),
             DataValue::class.java
         )
 
@@ -227,6 +244,65 @@ class ZooKeeperTest {
 
         service.setValue("$pathPrefix/null", null)
         assertThat(service.getValue("$pathPrefix/null", Any::class.java)).isNull()
+    }
+
+    @Test
+    fun lockTest() {
+
+        val lock0 = service.createLock("/lock-0")
+
+        lock0.acquire()
+        assertFalse(lock0.acquire(Duration.ZERO))
+        lock0.release()
+        assertTrue(lock0.acquire(Duration.ZERO))
+        lock0.release()
+
+        val lockPath = "/lock-path"
+
+        val zkService0 = EcosZooKeeper(zkServer.connectString)
+        val lockZk0 = zkService0.createLock(lockPath)
+        val zkService1 = EcosZooKeeper(zkServer.connectString)
+        val lockZk1 = zkService1.createLock(lockPath)
+
+        lockZk0.acquire()
+        assertFalse(lockZk1.acquire(Duration.ZERO))
+        lockZk0.release()
+        assertTrue(lockZk1.acquire(Duration.ZERO))
+        lockZk1.release()
+
+        lockZk0.acquire()
+
+        val waitingStartedTime = System.currentTimeMillis()
+        thread(start = true) {
+            Thread.sleep(2000)
+            lockZk0.release()
+        }
+        lockZk1.acquire(Duration.ofSeconds(10))
+        val elapsedWaitingTime = System.currentTimeMillis() - waitingStartedTime
+
+        assertThat(elapsedWaitingTime > 2000)
+        assertThat(elapsedWaitingTime < 2100)
+        lockZk1.release()
+
+        val lockServiceTestStart = System.currentTimeMillis()
+
+        var counter = 0
+        val lockService = EcosZkLockService("some-scope", zkService0)
+        val threads = (0 until 10).map {
+            thread(start = false) {
+                for (i in 0 until 10) {
+                    lockService.doInSync("counter", Duration.ofSeconds(30)) {
+                        counter += 1
+                    }
+                }
+            }
+        }
+        threads.forEach { it.start() }
+        threads.forEach { it.join() }
+
+        log.info { "Lock service test duration: " + (System.currentTimeMillis() - lockServiceTestStart) }
+
+        assertThat(counter).isEqualTo(100)
     }
 
     private fun readObjectOrNull(bytes: ByteArray, mapper: JsonMapper): ObjectData? {

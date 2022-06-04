@@ -9,17 +9,22 @@ import ecos.curator.org.apache.zookeeper.data.Stat
 import ecos.org.apache.curator.framework.CuratorFramework
 import ecos.org.apache.curator.framework.CuratorFrameworkFactory
 import ecos.org.apache.curator.framework.api.CuratorWatcher
+import ecos.org.apache.curator.framework.recipes.locks.InterProcessSemaphoreMutex
 import ecos.org.apache.curator.retry.RetryForever
 import mu.KotlinLogging
 import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.json.Json
 import ru.citeck.ecos.zookeeper.encoding.ContentEncoding
 import ru.citeck.ecos.zookeeper.encoding.ZkContentEncoder
+import ru.citeck.ecos.zookeeper.lock.EcosZkLock
+import ru.citeck.ecos.zookeeper.lock.EcosZkLockImpl
 import ru.citeck.ecos.zookeeper.mapping.ContentFormat
 import ru.citeck.ecos.zookeeper.mapping.ZkContentMapper
 import ru.citeck.ecos.zookeeper.value.ZkNodeContent
 import ru.citeck.ecos.zookeeper.value.ZkNodePlainValue
 import ru.citeck.ecos.zookeeper.value.ZkNodeValue
+import ru.citeck.ecos.zookeeper.watcher.EcosZkWatcher
+import ru.citeck.ecos.zookeeper.watcher.EcosZkWatcherImpl
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -301,30 +306,67 @@ class EcosZooKeeper private constructor(
     }
 
     fun watchChildren(path: String, action: (WatchedEvent) -> Unit) {
-        getClient().watchers()
-            .add()
-            .withMode(AddWatchMode.PERSISTENT)
-            .usingWatcher(CuratorWatcher { action.invoke(it) })
-            .forPath(path)
+        watchChildrenWithWatcher(path, action)
+    }
+
+    fun watchChildrenWithWatcher(path: String, action: (WatchedEvent) -> Unit): EcosZkWatcher {
+        return createWatcher(action) { watcher ->
+            getClient().watchers()
+                .add()
+                .withMode(AddWatchMode.PERSISTENT)
+                .usingWatcher(CuratorWatcher { action.invoke(it) })
+                .forPath(path)
+        }
     }
 
     fun watchChildrenRecursive(path: String, action: (WatchedEvent) -> Unit) {
-        getClient().watchers()
-            .add()
-            .withMode(AddWatchMode.PERSISTENT_RECURSIVE)
-            .usingWatcher(CuratorWatcher { action.invoke(it) })
-            .forPath(path)
+        watchChildrenRecursiveWithWatcher(path, action)
+    }
+
+    fun watchChildrenRecursiveWithWatcher(path: String, action: (WatchedEvent) -> Unit): EcosZkWatcher {
+        return createWatcher(action) { watcher ->
+            getClient().watchers()
+                .add()
+                .withMode(AddWatchMode.PERSISTENT_RECURSIVE)
+                .usingWatcher(watcher)
+                .forPath(path)
+        }
     }
 
     fun <T : Any> watchValue(path: String, type: Class<T>, action: (T?) -> Unit) {
-        getClient().watchers()
-            .add()
-            .withMode(AddWatchMode.PERSISTENT)
-            .usingWatcher(
-                CuratorWatcher { event ->
-                    action.invoke(getValue(event.path, type))
-                }
-            ).forPath(path)
+        watchValueWithWatcher(path, type, action)
+    }
+
+    fun <T : Any> watchValueWithWatcher(path: String, type: Class<T>, action: (T?) -> Unit): EcosZkWatcher {
+        return createWatcher({ event ->
+            action.invoke(getValue(event.path, type))
+        }) { watcher ->
+            getClient().watchers()
+                .add()
+                .withMode(AddWatchMode.PERSISTENT)
+                .usingWatcher(watcher)
+                .forPath(path)
+        }
+    }
+
+    fun createLock(path: String): EcosZkLock {
+        return EcosZkLockImpl(path, InterProcessSemaphoreMutex(innerClient, path))
+    }
+
+    fun dispose() {
+        innerClient.close()
+    }
+
+    private fun createWatcher(
+        action: (event: WatchedEvent) -> Unit,
+        registration: (CuratorWatcher) -> Unit
+    ): EcosZkWatcher {
+
+        val watcher = CuratorWatcher { action.invoke(it) }
+        registration(watcher)
+        return EcosZkWatcherImpl {
+            getClient().watchers().remove(watcher)
+        }
     }
 
     fun getOptions(): EcosZooKeeperOptions {
