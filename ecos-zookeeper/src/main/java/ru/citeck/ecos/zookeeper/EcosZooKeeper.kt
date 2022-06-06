@@ -14,6 +14,7 @@ import ecos.org.apache.curator.retry.RetryForever
 import mu.KotlinLogging
 import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.json.Json
+import ru.citeck.ecos.commons.json.exception.JsonMapperException
 import ru.citeck.ecos.zookeeper.encoding.ContentEncoding
 import ru.citeck.ecos.zookeeper.encoding.ZkContentEncoder
 import ru.citeck.ecos.zookeeper.lock.EcosZkLock
@@ -229,7 +230,12 @@ class EcosZooKeeper private constructor(
         }
 
         if (isRawJsonValue(data)) {
-            val plainValueObj = Json.mapper.readNotNull(data, DataValue::class.java)
+            val plainValueObj = try {
+                Json.mapper.readNotNull(data, DataValue::class.java)
+            } catch (e: JsonMapperException) {
+                logMapperException(path, e)
+                return null
+            }
             val plainValue = ZkNodePlainValue(
                 plainValueObj["created"].getAs(Instant::class.java) ?: Instant.EPOCH,
                 plainValueObj["modified"].getAs(Instant::class.java) ?: Instant.EPOCH,
@@ -246,7 +252,12 @@ class EcosZooKeeper private constructor(
             }
         }
 
-        val zNodeValue = zkNodeCborMapper.readNotNull(data, ZkNodeValue::class.java)
+        val zNodeValue = try {
+            zkNodeCborMapper.readNotNull(data, ZkNodeValue::class.java)
+        } catch (e: JsonMapperException) {
+            logMapperException(path, e)
+            return null
+        }
 
         var contentInStream: InputStream = ByteArrayInputStream(zNodeValue.content)
         contentInStream = contentEncoder.enhanceInput(contentInStream, zNodeValue.encoding)
@@ -258,6 +269,10 @@ class EcosZooKeeper private constructor(
         }
 
         return Json.mapper.convertNotNull(content.value, type)
+    }
+
+    private fun logMapperException(path: String, e: JsonMapperException) {
+        log.error(e) { "Exception while reading value by key $path. ZooKeeper options: $options" }
     }
 
     private fun isRawJsonValue(bytes: ByteArray): Boolean {
