@@ -6,6 +6,7 @@ import ecos.com.fasterxml.jackson210.databind.node.NullNode
 import ecos.com.fasterxml.jackson210.dataformat.cbor.CBORFactory
 import ecos.curator.org.apache.zookeeper.*
 import ecos.curator.org.apache.zookeeper.data.Stat
+import ecos.org.apache.curator.SessionFailedRetryPolicy
 import ecos.org.apache.curator.framework.CuratorFramework
 import ecos.org.apache.curator.framework.CuratorFrameworkFactory
 import ecos.org.apache.curator.framework.api.CuratorWatcher
@@ -60,8 +61,10 @@ class EcosZooKeeper private constructor(
         }
 
         private fun createClient(connectString: String, props: EcosZooKeeperProperties): CuratorFramework {
-            val retryPolicy = RetryForever(
-                Duration.ofSeconds(5).toMillis().toInt()
+            val retryPolicy = SessionFailedRetryPolicy(
+                RetryForever(
+                    Duration.ofSeconds(5).toMillis().toInt()
+                )
             )
             log.info {
                 "\n" +
@@ -325,7 +328,7 @@ class EcosZooKeeper private constructor(
     }
 
     fun watchChildrenWithWatcher(path: String, action: (WatchedEvent) -> Unit): EcosZkWatcher {
-        return createWatcher(action) { watcher ->
+        return createWatcher(action) { _ ->
             getClient().watchers()
                 .add()
                 .withMode(AddWatchMode.PERSISTENT)

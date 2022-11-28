@@ -36,7 +36,13 @@ class EcosZkLockService(
 
     override fun doInSyncOrSkip(key: String, timeout: Duration, action: () -> Unit): Boolean {
         val lock = getLock(key)
-        if (!lock.acquire(timeout)) {
+        val lockAcquired = try {
+            lock.acquire(timeout)
+        } catch (e: Exception) {
+            log.debug(e) { "Exception while lock acquisition. Key: $key" }
+            false
+        }
+        if (!lockAcquired) {
             return false
         }
         try {
