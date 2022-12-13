@@ -2,7 +2,7 @@ package ru.citeck.ecos.zookeeper.lock
 
 import mu.KotlinLogging
 import ru.citeck.ecos.commons.utils.NameUtils
-import ru.citeck.ecos.webapp.api.lock.EcosLockService
+import ru.citeck.ecos.webapp.api.lock.EcosLockApi
 import ru.citeck.ecos.webapp.api.lock.exception.AcquireTimeoutException
 import ru.citeck.ecos.zookeeper.EcosZooKeeper
 import java.time.Duration
@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
 class EcosZkLockService(
     private val scope: String,
     ecosZooKeeper: EcosZooKeeper
-) : EcosLockService {
+) : EcosLockApi {
 
     companion object {
         private val NAME_ESC = NameUtils.getEscaperWithAllowedChars("-")
