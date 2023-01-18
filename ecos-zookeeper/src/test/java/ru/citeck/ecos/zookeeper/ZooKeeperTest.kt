@@ -42,7 +42,7 @@ class ZooKeeperTest {
     @BeforeAll
     fun setUp() {
         zkServer = TestingServer()
-        service = EcosZooKeeper(zkServer.connectString)
+        service = ZkTestUtils.createZkClient(zkServer.connectString)
         client = service.getClient().usingNamespace("")
     }
 
@@ -62,7 +62,7 @@ class ZooKeeperTest {
 
     @AfterAll
     fun tearDown() {
-        zkServer!!.stop()
+        zkServer.stop()
     }
 
     @Test
@@ -259,9 +259,9 @@ class ZooKeeperTest {
 
         val lockPath = "/lock-path"
 
-        val zkService0 = EcosZooKeeper(zkServer.connectString)
+        val zkService0 = ZkTestUtils.createZkClient(zkServer.connectString)
         val lockZk0 = zkService0.createLock(lockPath)
-        val zkService1 = EcosZooKeeper(zkServer.connectString)
+        val zkService1 = ZkTestUtils.createZkClient(zkServer.connectString)
         val lockZk1 = zkService1.createLock(lockPath)
 
         lockZk0.acquire()

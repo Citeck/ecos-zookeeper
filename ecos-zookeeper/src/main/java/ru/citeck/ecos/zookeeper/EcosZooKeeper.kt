@@ -6,16 +6,14 @@ import ecos.com.fasterxml.jackson210.databind.node.NullNode
 import ecos.com.fasterxml.jackson210.dataformat.cbor.CBORFactory
 import ecos.curator.org.apache.zookeeper.*
 import ecos.curator.org.apache.zookeeper.data.Stat
-import ecos.org.apache.curator.SessionFailedRetryPolicy
 import ecos.org.apache.curator.framework.CuratorFramework
-import ecos.org.apache.curator.framework.CuratorFrameworkFactory
-import ecos.org.apache.curator.framework.api.CuratorWatcher
-import ecos.org.apache.curator.framework.recipes.locks.InterProcessSemaphoreMutex
-import ecos.org.apache.curator.retry.RetryForever
 import mu.KotlinLogging
 import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.json.Json
 import ru.citeck.ecos.commons.json.exception.JsonMapperException
+import ru.citeck.ecos.zookeeper.client.EcosZooKeeperClient
+import ru.citeck.ecos.zookeeper.client.EcosZooKeeperClientProps
+import ru.citeck.ecos.zookeeper.client.EcosZooKeeperWatcherKey
 import ru.citeck.ecos.zookeeper.encoding.ContentEncoding
 import ru.citeck.ecos.zookeeper.encoding.ZkContentEncoder
 import ru.citeck.ecos.zookeeper.lock.EcosZkLock
@@ -26,19 +24,15 @@ import ru.citeck.ecos.zookeeper.value.ZkNodeContent
 import ru.citeck.ecos.zookeeper.value.ZkNodePlainValue
 import ru.citeck.ecos.zookeeper.value.ZkNodeValue
 import ru.citeck.ecos.zookeeper.watcher.EcosZkWatcher
-import ru.citeck.ecos.zookeeper.watcher.EcosZkWatcherImpl
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
-import java.time.Duration
 import java.time.Instant
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 
 class EcosZooKeeper private constructor(
     private val props: EcosZooKeeperProperties,
     private val options: EcosZooKeeperOptions = EcosZooKeeperOptions.DEFAULT,
-    innerClient: CuratorFramework
+    private val client: EcosZooKeeperClient
 ) {
 
     companion object {
@@ -56,33 +50,17 @@ class EcosZooKeeper private constructor(
         private val contentMapper = ZkContentMapper()
         private val contentEncoder = ZkContentEncoder()
 
-        private fun createClient(props: EcosZooKeeperProperties): CuratorFramework {
-            return createClient("${props.host}:${props.port}", props)
-        }
-
-        private fun createClient(connectString: String, props: EcosZooKeeperProperties): CuratorFramework {
-            val retryPolicy = SessionFailedRetryPolicy(
-                RetryForever(
-                    Duration.ofSeconds(5).toMillis().toInt()
+        private fun createClient(props: EcosZooKeeperProperties): EcosZooKeeperClient {
+            return EcosZooKeeperClient(
+                EcosZooKeeperClientProps(
+                    props.host,
+                    props.port
                 )
             )
-            log.info {
-                "\n" +
-                    "================Ecos Zookeeper Init======================\n" +
-                    "URL: $connectString\n" +
-                    "Startup will be stopped until Zookeeper will be available\n" +
-                    "=========================================================\n"
-            }
-            val client = CuratorFrameworkFactory
-                .newClient(connectString, retryPolicy)
-            client.start()
-            return client
         }
     }
 
-    private var initialized = AtomicBoolean()
-    private val innerClient: CuratorFramework = innerClient.usingNamespace(options.namespace)
-
+    private var hasParent = false
     private val encoderOptions = contentEncoder.parseOptions(options.encoding, options.encodingOptions)
 
     @JvmOverloads
@@ -93,34 +71,19 @@ class EcosZooKeeper private constructor(
         props, options, createClient(props)
     )
 
-    @JvmOverloads
-    constructor(
-        connectString: String,
-        props: EcosZooKeeperProperties = EcosZooKeeperProperties(),
-        options: EcosZooKeeperOptions = EcosZooKeeperOptions.DEFAULT
-    ) : this(
-        props, options, createClient(connectString, props)
-    )
-
     private constructor(
         parent: EcosZooKeeper,
         options: EcosZooKeeperOptions
     ) : this(
         parent.props,
         options,
-        parent.innerClient
-    )
+        parent.client
+    ) {
+        hasParent = true
+    }
 
     fun getClient(): CuratorFramework {
-        if (!initialized.get()) {
-            if (!innerClient.blockUntilConnected(2, TimeUnit.SECONDS)) {
-                do {
-                    log.warn { "Waiting until ZooKeeper will be available" }
-                } while (!innerClient.blockUntilConnected(1, TimeUnit.MINUTES))
-            }
-            initialized.set(true)
-        }
-        return innerClient
+        return client.getClient(options.namespace)
     }
 
     fun withNamespace(ns: String): EcosZooKeeper {
@@ -328,13 +291,7 @@ class EcosZooKeeper private constructor(
     }
 
     fun watchChildrenWithWatcher(path: String, action: (WatchedEvent) -> Unit): EcosZkWatcher {
-        return createWatcher(action) { _ ->
-            getClient().watchers()
-                .add()
-                .withMode(AddWatchMode.PERSISTENT)
-                .usingWatcher(CuratorWatcher { action.invoke(it) })
-                .forPath(path)
-        }
+        return client.addWatcher(EcosZooKeeperWatcherKey(options.namespace, path, false), action)
     }
 
     fun watchChildrenRecursive(path: String, action: (WatchedEvent) -> Unit) {
@@ -342,13 +299,7 @@ class EcosZooKeeper private constructor(
     }
 
     fun watchChildrenRecursiveWithWatcher(path: String, action: (WatchedEvent) -> Unit): EcosZkWatcher {
-        return createWatcher(action) { watcher ->
-            getClient().watchers()
-                .add()
-                .withMode(AddWatchMode.PERSISTENT_RECURSIVE)
-                .usingWatcher(watcher)
-                .forPath(path)
-        }
+        return client.addWatcher(EcosZooKeeperWatcherKey(options.namespace, path, true), action)
     }
 
     fun <T : Any> watchValue(path: String, type: Class<T>, action: (T?) -> Unit) {
@@ -356,34 +307,20 @@ class EcosZooKeeper private constructor(
     }
 
     fun <T : Any> watchValueWithWatcher(path: String, type: Class<T>, action: (T?) -> Unit): EcosZkWatcher {
-        return createWatcher({ event ->
-            action.invoke(getValue(event.path, type))
-        }) { watcher ->
-            getClient().watchers()
-                .add()
-                .withMode(AddWatchMode.PERSISTENT)
-                .usingWatcher(watcher)
-                .forPath(path)
+        return client.addWatcher(EcosZooKeeperWatcherKey(options.namespace, path, false)) {
+            action.invoke(getValue(it.path, type))
         }
     }
 
     fun createLock(path: String): EcosZkLock {
-        return EcosZkLockImpl(path, InterProcessSemaphoreMutex(innerClient, path))
+        return EcosZkLockImpl(path, getClient())
     }
 
     fun dispose() {
-        innerClient.close()
-    }
-
-    private fun createWatcher(
-        action: (event: WatchedEvent) -> Unit,
-        registration: (CuratorWatcher) -> Unit
-    ): EcosZkWatcher {
-
-        val watcher = CuratorWatcher { action.invoke(it) }
-        registration(watcher)
-        return EcosZkWatcherImpl {
-            getClient().watchers().remove(watcher)
+        if (hasParent) {
+            log.warn { "Disposing is not allowed. You should call dispose() on main EcosZooKeeper" }
+        } else {
+            client.dispose()
         }
     }
 
