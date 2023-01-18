@@ -58,6 +58,17 @@ class EcosZooKeeper private constructor(
                 )
             )
         }
+
+        private fun createPropsFromConnectString(connectString: String, props: EcosZooKeeperProperties): EcosZooKeeperProperties {
+            if (connectString.isBlank()) {
+                return props
+            }
+            val hostAndPort = connectString.split(":")
+            if (hostAndPort.size != 2) {
+                error("Invalid connect string: '$connectString'")
+            }
+            return EcosZooKeeperProperties(hostAndPort[0], hostAndPort[1].toInt())
+        }
     }
 
     private var hasParent = false
@@ -67,9 +78,14 @@ class EcosZooKeeper private constructor(
     constructor(
         props: EcosZooKeeperProperties,
         options: EcosZooKeeperOptions = EcosZooKeeperOptions.DEFAULT
-    ) : this(
-        props, options, createClient(props)
-    )
+    ) : this(props, options, createClient(props))
+
+    @JvmOverloads
+    constructor(
+        connectString: String,
+        props: EcosZooKeeperProperties = EcosZooKeeperProperties(),
+        options: EcosZooKeeperOptions = EcosZooKeeperOptions.DEFAULT
+    ) : this(createPropsFromConnectString(connectString, props), options)
 
     private constructor(
         parent: EcosZooKeeper,
