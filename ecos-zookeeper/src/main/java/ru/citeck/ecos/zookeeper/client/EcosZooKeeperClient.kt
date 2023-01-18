@@ -2,6 +2,7 @@ package ru.citeck.ecos.zookeeper.client
 
 import ecos.curator.org.apache.zookeeper.AddWatchMode
 import ecos.curator.org.apache.zookeeper.WatchedEvent
+import ecos.curator.org.apache.zookeeper.Watcher.Event.EventType
 import ecos.org.apache.curator.SessionFailedRetryPolicy
 import ecos.org.apache.curator.framework.CuratorFramework
 import ecos.org.apache.curator.framework.CuratorFrameworkFactory
@@ -117,7 +118,11 @@ internal class EcosZooKeeperClient(props: EcosZooKeeperClientProps) {
                     AddWatchMode.PERSISTENT
                 }
             )
-            .usingWatcher(CuratorWatcher { eventsQueue.add(WatcherEvent(key, it)) })
+            .usingWatcher(CuratorWatcher {
+                if (it.type != null && it.type != EventType.None) {
+                    eventsQueue.add(WatcherEvent(key, it))
+                }
+            })
             .forPath(key.path)
     }
 
