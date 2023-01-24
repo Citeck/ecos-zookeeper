@@ -7,10 +7,13 @@ import ecos.com.fasterxml.jackson210.dataformat.cbor.CBORFactory
 import ecos.curator.org.apache.zookeeper.*
 import ecos.curator.org.apache.zookeeper.data.Stat
 import ecos.org.apache.curator.framework.CuratorFramework
+import ecos.org.apache.curator.framework.recipes.cache.CuratorCache
 import mu.KotlinLogging
 import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.json.Json
 import ru.citeck.ecos.commons.json.exception.JsonMapperException
+import ru.citeck.ecos.zookeeper.cache.EcosZkCacheBuilder
+import ru.citeck.ecos.zookeeper.cache.EcosZkCacheBuilderImpl
 import ru.citeck.ecos.zookeeper.client.EcosZooKeeperClient
 import ru.citeck.ecos.zookeeper.client.EcosZooKeeperClientProps
 import ru.citeck.ecos.zookeeper.client.EcosZooKeeperWatcherKey
@@ -182,7 +185,7 @@ class EcosZooKeeper private constructor(
         return getValue(path, DataValue::class.java) ?: DataValue.NULL
     }
 
-    fun <T : Any> getValue(path: String, type: Class<T>): T? {
+    fun <T : Any> getValue(path: String, type: Class<out T>): T? {
         return getValue(path, Json.mapper.getType(type))
     }
 
@@ -201,6 +204,14 @@ class EcosZooKeeper private constructor(
         if (existsStat != null) {
             data = getClient().data.forPath(path)
         }
+        return readNodeValue(path, data, type)
+    }
+
+    private fun <T : Any> readNodeValue(path: String, data: ByteArray?, type: JavaType): T? {
+
+        @Suppress("UNCHECKED_CAST")
+        val clazz: Class<T> = type.rawClass as Class<T>
+
         if (data == null || data.isEmpty()) {
             if (clazz.isAssignableFrom(DataValue::class.java)) {
                 return clazz.cast(DataValue.NULL)
@@ -283,7 +294,7 @@ class EcosZooKeeper private constructor(
         }
     }
 
-    fun <T : Any> getChildren(path: String, type: Class<T>): Map<String, T> {
+    fun <T : Any> getChildren(path: String, type: Class<out T>): Map<String, T> {
         return getChildren(path, Json.mapper.getType(type))
     }
 
@@ -318,18 +329,30 @@ class EcosZooKeeper private constructor(
         return client.addWatcher(EcosZooKeeperWatcherKey(options.namespace, path, true), action)
     }
 
-    fun <T : Any> watchValue(path: String, type: Class<T>, action: (T?) -> Unit) {
+    fun <T : Any> watchValue(path: String, type: Class<out T>, action: (T?) -> Unit) {
         watchValueWithWatcher(path, type, action)
     }
 
-    fun <T : Any> watchValueWithWatcher(path: String, type: Class<T>, action: (T?) -> Unit): EcosZkWatcher {
+    fun <T : Any> watchValueWithWatcher(path: String, type: Class<out T>, action: (T?) -> Unit): EcosZkWatcher {
         return client.addWatcher(EcosZooKeeperWatcherKey(options.namespace, path, false)) {
             action.invoke(getValue(it.path, type))
         }
     }
 
+    fun doWhenReconnected(action: () -> Unit) {
+        client.doWhenReconnected(action)
+    }
+
     fun createLock(path: String): EcosZkLock {
         return EcosZkLockImpl(path, getClient())
+    }
+
+    fun createCache(path: String): EcosZkCacheBuilder {
+        return EcosZkCacheBuilderImpl(
+            path,
+            CuratorCache.builder(client.getClient(options.namespace), path),
+            this::readNodeValue
+        )
     }
 
     fun dispose() {

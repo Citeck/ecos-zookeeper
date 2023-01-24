@@ -15,6 +15,7 @@ import ru.citeck.ecos.zookeeper.watcher.EcosZkWatcherImpl
 import java.lang.Exception
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -33,7 +34,9 @@ internal class EcosZooKeeperClient(props: EcosZooKeeperClientProps) {
 
     private val initialized = AtomicBoolean()
     private val connectionLost = AtomicBoolean()
-    private val listenersReinitializationRequired = AtomicBoolean()
+    private val reconnectedAfterLostActionsRequired = AtomicBoolean()
+
+    private val reconnectedListeners: MutableList<() -> Unit> = CopyOnWriteArrayList()
 
     init {
         val retryPolicy = SessionFailedRetryPolicy(
@@ -58,17 +61,25 @@ internal class EcosZooKeeperClient(props: EcosZooKeeperClientProps) {
                 connectionLost.set(true)
             } else if (connectionLost.get() && newState == ConnectionState.RECONNECTED) {
                 connectionLost.set(false)
-                listenersReinitializationRequired.set(true)
+                reconnectedAfterLostActionsRequired.set(true)
             }
         }
 
         thread(name = "ecos-zookeeper-events", start = true) {
             while (!clientDisposed.get()) {
-                if (listenersReinitializationRequired.compareAndSet(true, false)) {
+                if (reconnectedAfterLostActionsRequired.compareAndSet(true, false)) {
                     log.info { "Reinitialize watchers" }
                     synchronized(eventListeners) {
-                        eventListeners.forEach { (k, v) ->
+                        eventListeners.forEach { (k, _) ->
                             registerWatcher(k)
+                        }
+                    }
+                    log.info { "Call reconnected listeners" }
+                    reconnectedListeners.forEach { listener ->
+                        try {
+                            listener.invoke()
+                        } catch (e: Throwable) {
+                            log.error("Error in reconnection listener", e)
                         }
                     }
                 }
@@ -91,6 +102,10 @@ internal class EcosZooKeeperClient(props: EcosZooKeeperClientProps) {
                 dispose()
             }
         })
+    }
+
+    fun doWhenReconnected(action: () -> Unit) {
+        this.reconnectedListeners.add(action)
     }
 
     fun addWatcher(key: EcosZooKeeperWatcherKey, action: (WatchedEvent) -> Unit): EcosZkWatcher {
@@ -118,11 +133,13 @@ internal class EcosZooKeeperClient(props: EcosZooKeeperClientProps) {
                     AddWatchMode.PERSISTENT
                 }
             )
-            .usingWatcher(CuratorWatcher {
-                if (it.type != null && it.type != EventType.None) {
-                    eventsQueue.add(WatcherEvent(key, it))
+            .usingWatcher(
+                CuratorWatcher {
+                    if (it.type != null && it.type != EventType.None) {
+                        eventsQueue.add(WatcherEvent(key, it))
+                    }
                 }
-            })
+            )
             .forPath(key.path)
     }
 

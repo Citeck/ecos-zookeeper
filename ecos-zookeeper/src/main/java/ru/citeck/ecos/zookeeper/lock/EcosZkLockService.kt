@@ -2,16 +2,12 @@ package ru.citeck.ecos.zookeeper.lock
 
 import mu.KotlinLogging
 import ru.citeck.ecos.commons.utils.NameUtils
+import ru.citeck.ecos.webapp.api.lock.EcosLock
 import ru.citeck.ecos.webapp.api.lock.EcosLockApi
-import ru.citeck.ecos.webapp.api.lock.exception.AcquireTimeoutException
 import ru.citeck.ecos.zookeeper.EcosZooKeeper
-import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 
-class EcosZkLockService(
-    private val scope: String,
-    ecosZooKeeper: EcosZooKeeper
-) : EcosLockApi {
+class EcosZkLockService(scope: String, ecosZooKeeper: EcosZooKeeper) : EcosLockApi {
 
     companion object {
         private val NAME_ESC = NameUtils.getEscaperWithAllowedChars("-")
@@ -20,48 +16,9 @@ class EcosZkLockService(
     }
 
     private val localZk = ecosZooKeeper.withNamespace("ecos/locks/${NAME_ESC.escape(scope)}")
-    private val locks = ConcurrentHashMap<String, EcosZkLock>()
+    private val locks = ConcurrentHashMap<String, EcosLock>()
 
-    override fun <T> doInSync(key: String, timeout: Duration, action: () -> T): T {
-        val lock = getLock(key)
-        if (!lock.acquire(timeout)) {
-            throw AcquireTimeoutException(key, timeout)
-        }
-        try {
-            return action.invoke()
-        } finally {
-            release(lock)
-        }
-    }
-
-    override fun doInSyncOrSkip(key: String, timeout: Duration, action: () -> Unit): Boolean {
-        val lock = getLock(key)
-        val lockAcquired = try {
-            lock.acquire(timeout)
-        } catch (e: Exception) {
-            log.debug(e) { "Exception while lock acquisition. Key: $key" }
-            false
-        }
-        if (!lockAcquired) {
-            return false
-        }
-        try {
-            action.invoke()
-        } finally {
-            release(lock)
-        }
-        return true
-    }
-
-    private fun getLock(key: String): EcosZkLock {
+    override fun getLock(key: String): EcosLock {
         return locks.computeIfAbsent(key) { localZk.createLock("/" + NAME_ESC.escape(key)) }
-    }
-
-    private fun release(lock: EcosZkLock) {
-        try {
-            lock.release()
-        } catch (e: Exception) {
-            log.warn(e) { "Exception while lock releasing. Path: '${lock.getPath()}' Lock service scope: '$scope'" }
-        }
     }
 }

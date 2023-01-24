@@ -17,24 +17,21 @@ class EcosZkLockImpl(
 
     private val mutex = InterProcessSemaphoreMutex(client, path)
 
-    override fun getPath(): String {
+    override fun getKey(): String {
         return path
     }
 
-    override fun acquire() {
-        mutex.acquire()
-    }
-
     override fun acquire(timeout: Duration): Boolean {
-        if (!client.zookeeperClient.isConnected) {
-            return false
-        }
         return mutex.acquire(timeout.toMillis(), TimeUnit.MILLISECONDS)
     }
 
     override fun release() {
         if (mutex.isAcquiredInThisProcess) {
-            mutex.release()
+            try {
+                mutex.release()
+            } catch (e: Throwable) {
+                log.warn(e) { "Exception while lock releasing. Path: '$path' Client namespace: '${client.namespace}'" }
+            }
         } else {
             log.warn { "Mutex is not acquired in this process. Path: $path" }
         }
@@ -42,5 +39,9 @@ class EcosZkLockImpl(
 
     override fun isAcquiredInThisProcess(): Boolean {
         return mutex.isAcquiredInThisProcess
+    }
+
+    override fun dispose() {
+        release()
     }
 }

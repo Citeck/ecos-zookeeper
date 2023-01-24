@@ -251,7 +251,7 @@ class ZooKeeperTest {
 
         val lock0 = service.createLock("/lock-0")
 
-        lock0.acquire()
+        lock0.acquire(Duration.ofSeconds(5))
         assertFalse(lock0.acquire(Duration.ZERO))
         lock0.release()
         assertTrue(lock0.acquire(Duration.ZERO))
@@ -264,13 +264,13 @@ class ZooKeeperTest {
         val zkService1 = EcosZooKeeper(zkServer.connectString)
         val lockZk1 = zkService1.createLock(lockPath)
 
-        lockZk0.acquire()
+        lockZk0.acquire(Duration.ofSeconds(5))
         assertFalse(lockZk1.acquire(Duration.ZERO))
         lockZk0.release()
         assertTrue(lockZk1.acquire(Duration.ZERO))
         lockZk1.release()
 
-        lockZk0.acquire()
+        lockZk0.acquire(Duration.ofSeconds(5))
 
         val waitingStartedTime = System.currentTimeMillis()
         thread(start = true) {
@@ -317,7 +317,7 @@ class ZooKeeperTest {
         return service.getChildren(path, TestData::class.java)
             .entries
             .associate {
-                "$path/${it.key}" to it.value!!
+                "$path/${it.key}" to it.value
             }
     }
 
