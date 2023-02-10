@@ -5,11 +5,12 @@ import ru.citeck.ecos.test.commons.containers.container.zookeeper.ZooKeeperConta
 import ru.citeck.ecos.test.commons.listener.EcosTestExecutionListener
 import ru.citeck.ecos.zookeeper.EcosZooKeeper
 import ru.citeck.ecos.zookeeper.EcosZooKeeperProperties
+import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 object EcosZooKeeperTest {
 
-    private var zooKeeper = ThreadLocal<EcosZooKeeper>()
+    private var zooKeeper = Collections.synchronizedMap(IdentityHashMap<Thread, EcosZooKeeper>())
 
     fun createZooKeeper(): EcosZooKeeper {
         return createZooKeeper {}
@@ -36,10 +37,11 @@ object EcosZooKeeperTest {
     }
 
     fun getZooKeeper(): EcosZooKeeper {
-        val zooKeeper = this.zooKeeper.get()
+        val thread = Thread.currentThread()
+        val zooKeeper = this.zooKeeper[thread]
         if (zooKeeper == null) {
-            val nnZooKeeper = createZooKeeper { this.zooKeeper.remove() }
-            this.zooKeeper.set(nnZooKeeper)
+            val nnZooKeeper = createZooKeeper { this.zooKeeper.remove(thread) }
+            this.zooKeeper[thread] = nnZooKeeper
             return nnZooKeeper
         }
         return zooKeeper
