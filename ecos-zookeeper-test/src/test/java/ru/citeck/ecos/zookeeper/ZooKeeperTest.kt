@@ -6,7 +6,6 @@ import ecos.curator.org.apache.zookeeper.CreateMode
 import ecos.curator.org.apache.zookeeper.KeeperException
 import ecos.curator.org.apache.zookeeper.ZooDefs
 import ecos.org.apache.curator.framework.CuratorFramework
-import ecos.org.apache.curator.test.TestingServer
 import mu.KotlinLogging
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.*
@@ -17,6 +16,7 @@ import ru.citeck.ecos.commons.json.JsonMapper
 import ru.citeck.ecos.zookeeper.encoding.ContentEncoding
 import ru.citeck.ecos.zookeeper.lock.EcosZkLockService
 import ru.citeck.ecos.zookeeper.mapping.ContentFormat
+import ru.citeck.ecos.zookeeper.test.EcosZooKeeperTest
 import ru.citeck.ecos.zookeeper.value.ZkNodeContent
 import ru.citeck.ecos.zookeeper.value.ZkNodePlainValue
 import ru.citeck.ecos.zookeeper.value.ZkNodeValue
@@ -27,28 +27,22 @@ import kotlin.concurrent.thread
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ZooKeeperTest {
 
     companion object {
         private val log = KotlinLogging.logger {}
     }
 
-    private lateinit var zkServer: TestingServer
-
-    private lateinit var service: EcosZooKeeper
     private lateinit var client: CuratorFramework
 
-    @BeforeAll
+    @BeforeEach
     fun setUp() {
-        zkServer = TestingServer()
-        service = EcosZooKeeper(zkServer.connectString)
-        client = service.getClient().usingNamespace("")
+        client = EcosZooKeeperTest.getZooKeeper().getClient().usingNamespace("")
     }
 
     @Test
     fun abc() {
-        val typesService = service.withNamespace("ecos/model/types")
+        val typesService = EcosZooKeeperTest.getZooKeeper().withNamespace("ecos/model/types")
 
         typesService.watchChildrenRecursive("/") { event ->
             println(event)
@@ -60,18 +54,14 @@ class ZooKeeperTest {
         println(children)
     }
 
-    @AfterAll
-    fun tearDown() {
-        zkServer.stop()
-    }
-
     @Test
     fun check() {
 
-        service.watchChildren("/aa/bb") {
+        val ecosZkBase = EcosZooKeeperTest.getZooKeeper()
+        ecosZkBase.watchChildren("/aa/bb") {
             println("TRIGGER = $it")
         }
-        service.getChildren("/aa/bb/cc/dd/ee")
+        ecosZkBase.getChildren("/aa/bb/cc/dd/ee")
 
         val valuesByPath = listOf(
             "/aa/bb/cc" to TestData("aaa", "bbb", 232),
@@ -80,8 +70,8 @@ class ZooKeeperTest {
         )
 
         valuesByPath.forEach {
-            service.setValue(it.first, it.second)
-            val valueFromService = service.getValue(it.first, TestData::class.java)!!
+            ecosZkBase.setValue(it.first, it.second)
+            val valueFromService = ecosZkBase.getValue(it.first, TestData::class.java)!!
             assertThat(valueFromService).isEqualTo(it.second)
         }
 
@@ -93,21 +83,23 @@ class ZooKeeperTest {
         val keyToRemove = "/aa/bb/cc"
         expectedChildrenMap.remove(keyToRemove)
         assertThat(expectedChildrenMap).hasSize(1)
-        service.deleteValue(keyToRemove)
+        ecosZkBase.deleteValue(keyToRemove)
 
         assertThat(getChildrenByPath("/aa/bb")).isEqualTo(expectedChildrenMap)
 
         // should not throw exception
-        service.deleteValue("/unknown/path/abc")
+        ecosZkBase.deleteValue("/unknown/path/abc")
 
         assertThrows<KeeperException.NotEmptyException> {
-            service.deleteValue("/aa/bb")
+            ecosZkBase.deleteValue("/aa/bb")
         }
-        service.deleteValue("/aa/bb", true)
+        ecosZkBase.deleteValue("/aa/bb", true)
     }
 
     @Test
     fun testLegacyValues() {
+
+        val ecosZkBase = EcosZooKeeperTest.getZooKeeper()
 
         val created = Instant.parse("2022-01-01T00:01:02Z")
         val modified = Instant.parse("2022-01-02T00:01:02Z")
@@ -128,17 +120,19 @@ class ZooKeeperTest {
             .withACL(ZooDefs.Ids.OPEN_ACL_UNSAFE)
             .forPath("/ecos/config/legacy-test-config", Json.mapper.toBytes(legacyValue))
 
-        val content = service.getValue("/config/legacy-test-config", ZkNodeContent::class.java)!!
+        val content = ecosZkBase.getValue("/config/legacy-test-config", ZkNodeContent::class.java)!!
         assertThat(content.created).isEqualTo(created)
         assertThat(content.modified).isEqualTo(modified)
         assertThat(content.value).isEqualTo(data)
 
-        val dataFromService = service.getValue("/config/legacy-test-config", DataValue::class.java)!!
+        val dataFromService = ecosZkBase.getValue("/config/legacy-test-config", DataValue::class.java)!!
         assertThat(dataFromService).isEqualTo(data)
     }
 
     @Test
     fun formatEncodingTest() {
+
+        val ecosZkBase = EcosZooKeeperTest.getZooKeeper()
 
         val pathPrefix = "/format-enc-test/"
 
@@ -155,7 +149,7 @@ class ZooKeeperTest {
         val encFormatOptions = listOf(jsonPlain, cborPlain, jsonZstd, cborZstd)
 
         val services = encFormatOptions.associateWith {
-            service.withOptions {
+            ecosZkBase.withOptions {
                 withEncoding(it.encoding)
                 withFormat(it.format)
             }
@@ -228,28 +222,32 @@ class ZooKeeperTest {
     @Test
     fun scalarsTest() {
 
+        val ecosZkBase = EcosZooKeeperTest.getZooKeeper()
+
         val pathPrefix = "/scalars"
 
-        service.setValue("$pathPrefix/str", "str-value")
-        assertThat(service.getValue("$pathPrefix/str", String::class.java)).isEqualTo("str-value")
+        ecosZkBase.setValue("$pathPrefix/str", "str-value")
+        assertThat(ecosZkBase.getValue("$pathPrefix/str", String::class.java)).isEqualTo("str-value")
 
-        service.setValue("$pathPrefix/int", 123)
-        assertThat(service.getValue("$pathPrefix/int", Int::class.java)).isEqualTo(123)
+        ecosZkBase.setValue("$pathPrefix/int", 123)
+        assertThat(ecosZkBase.getValue("$pathPrefix/int", Int::class.java)).isEqualTo(123)
 
-        service.setValue("$pathPrefix/bool", true)
-        assertThat(service.getValue("$pathPrefix/bool", Boolean::class.java)).isEqualTo(true)
+        ecosZkBase.setValue("$pathPrefix/bool", true)
+        assertThat(ecosZkBase.getValue("$pathPrefix/bool", Boolean::class.java)).isEqualTo(true)
 
-        service.setValue("$pathPrefix/double", 123.123)
-        assertThat(service.getValue("$pathPrefix/double", Double::class.java)).isEqualTo(123.123)
+        ecosZkBase.setValue("$pathPrefix/double", 123.123)
+        assertThat(ecosZkBase.getValue("$pathPrefix/double", Double::class.java)).isEqualTo(123.123)
 
-        service.setValue("$pathPrefix/null", null)
-        assertThat(service.getValue("$pathPrefix/null", Any::class.java)).isNull()
+        ecosZkBase.setValue("$pathPrefix/null", null)
+        assertThat(ecosZkBase.getValue("$pathPrefix/null", Any::class.java)).isNull()
     }
 
     @Test
     fun lockTest() {
 
-        val lock0 = service.createLock("/lock-0")
+        val ecosZkBase = EcosZooKeeperTest.getZooKeeper()
+
+        val lock0 = ecosZkBase.createLock("/lock-0")
 
         lock0.acquire(Duration.ofSeconds(5))
         assertFalse(lock0.acquire(Duration.ZERO))
@@ -259,9 +257,9 @@ class ZooKeeperTest {
 
         val lockPath = "/lock-path"
 
-        val zkService0 = EcosZooKeeper(zkServer.connectString)
+        val zkService0 = EcosZooKeeperTest.createZooKeeper()
         val lockZk0 = zkService0.createLock(lockPath)
-        val zkService1 = EcosZooKeeper(zkServer.connectString)
+        val zkService1 = EcosZooKeeperTest.createZooKeeper()
         val lockZk1 = zkService1.createLock(lockPath)
 
         lockZk0.acquire(Duration.ofSeconds(5))
@@ -314,7 +312,7 @@ class ZooKeeperTest {
     }
 
     private fun getChildrenByPath(path: String): Map<String, TestData> {
-        return service.getChildren(path, TestData::class.java)
+        return EcosZooKeeperTest.getZooKeeper().getChildren(path, TestData::class.java)
             .entries
             .associate {
                 "$path/${it.key}" to it.value

@@ -1,26 +1,25 @@
 package ru.citeck.ecos.zookeeper
 
-import ecos.org.apache.curator.test.TestingServer
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import ru.citeck.ecos.zookeeper.test.EcosZooKeeperTest
 
 class ZookeeperCacheTest {
 
     @Test
     fun test() {
 
-        val zkServer = TestingServer()
-        val service = EcosZooKeeper(zkServer.connectString).withNamespace("webapps")
+        val ecosZooKeeper = EcosZooKeeperTest.getZooKeeper().withNamespace("webapps")
 
-        val cache = service.createCache("/instances").build()
-        val rootCache = service.createCache("/").build()
+        val cache = ecosZooKeeper.createCache("/instances").build()
+        val rootCache = ecosZooKeeper.createCache("/").build()
 
         val instanceInfoPath = "/emodel/123456"
         val value = cache.getValue(instanceInfoPath, InstanceInfo::class.java)
         assertThat(value).isNull()
 
         val newInfo = InstanceInfo("localhost", 1234)
-        service.setValue("/instances$instanceInfoPath", newInfo)
+        ecosZooKeeper.setValue("/instances$instanceInfoPath", newInfo)
 
         Thread.sleep(500)
 
@@ -31,7 +30,7 @@ class ZookeeperCacheTest {
         assertThat(cache.getChildren("/")).containsExactly("emodel")
         assertThat(cache.getChildren("/emodel")).containsExactly("123456")
 
-        service.deleteValue("/instances$instanceInfoPath")
+        ecosZooKeeper.deleteValue("/instances$instanceInfoPath")
 
         Thread.sleep(500)
 
