@@ -12,15 +12,15 @@ object EcosZooKeeperTest {
 
     private var zooKeeper = Collections.synchronizedMap(IdentityHashMap<Thread, EcosZooKeeper>())
 
-    fun createZooKeeper(): EcosZooKeeper {
-        return createZooKeeper {}
+    @JvmStatic
+    @JvmOverloads
+    fun createZooKeeper(closeAfterTest: Boolean = true): EcosZooKeeper {
+        return createZooKeeper(closeAfterTest) {}
     }
 
-    fun getContainer(): ZooKeeperContainer {
-        return TestContainers.getZooKeeper()
-    }
-
-    fun createZooKeeper(beforeClose: () -> Unit): EcosZooKeeper {
+    @JvmStatic
+    @JvmOverloads
+    fun createZooKeeper(closeAfterTest: Boolean = true, beforeClose: () -> Unit): EcosZooKeeper {
         val container = getContainer()
         val props = EcosZooKeeperProperties(container.getHost(), container.getMainPort())
         val zooKeeper = EcosZooKeeper(props)
@@ -31,16 +31,24 @@ object EcosZooKeeperTest {
                 zooKeeper.dispose()
             }
         }
+        if (closeAfterTest) {
+            EcosTestExecutionListener.doWhenExecutionFinished { _, _ -> closeImpl() }
+        }
         container.doBeforeStop(closeImpl)
-        EcosTestExecutionListener.doWhenExecutionFinished { _, _ -> closeImpl() }
         return zooKeeper
     }
 
+    fun getContainer(): ZooKeeperContainer {
+        return TestContainers.getZooKeeper()
+    }
+
+    @JvmStatic
+    @Synchronized
     fun getZooKeeper(): EcosZooKeeper {
         val thread = Thread.currentThread()
         val zooKeeper = this.zooKeeper[thread]
         if (zooKeeper == null) {
-            val nnZooKeeper = createZooKeeper { this.zooKeeper.remove(thread) }
+            val nnZooKeeper = createZooKeeper(false) { this.zooKeeper.remove(thread) }
             this.zooKeeper[thread] = nnZooKeeper
             return nnZooKeeper
         }

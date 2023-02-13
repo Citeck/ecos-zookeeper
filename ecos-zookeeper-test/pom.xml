@@ -16,7 +16,7 @@
     <properties>
 
         <ecos.curator.version>5.4.0.0</ecos.curator.version>
-        <ecos.test-commons.version>1.0.1</ecos.test-commons.version>
+        <ecos.test-commons.version>1.0.4</ecos.test-commons.version>
 
     </properties>
 
