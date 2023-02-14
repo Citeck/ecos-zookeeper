@@ -11,6 +11,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 object EcosZooKeeperTest {
 
     private var zooKeeper = Collections.synchronizedMap(LinkedHashMap<Pair<Any, Thread>, EcosZooKeeper>())
+    private var containerByZooKeeper = Collections.synchronizedMap(IdentityHashMap<EcosZooKeeper, ZooKeeperContainer>())
+    private val mainContainerReserved = AtomicBoolean()
 
     @JvmStatic
     fun createZooKeeper(): EcosZooKeeper {
@@ -32,14 +34,17 @@ object EcosZooKeeperTest {
     @JvmStatic
     @JvmOverloads
     fun createZooKeeper(key: Any, closeAfterTest: Boolean = true, beforeClose: () -> Unit): EcosZooKeeper {
-        val container = getContainer(key)
+        val container = TestContainers.getZooKeeper(key)
         val props = EcosZooKeeperProperties(container.getHost(), container.getMainPort())
         val zooKeeper = EcosZooKeeper(props)
+        containerByZooKeeper[zooKeeper] = container
         val wasClosed = AtomicBoolean(false)
         val closeImpl = {
             if (wasClosed.compareAndSet(false, true)) {
                 beforeClose.invoke()
                 zooKeeper.dispose()
+                container.release()
+                containerByZooKeeper.remove(zooKeeper)
             }
         }
         if (closeAfterTest) {
@@ -50,9 +55,8 @@ object EcosZooKeeperTest {
     }
 
     @JvmStatic
-    @JvmOverloads
-    fun getContainer(key: Any = ""): ZooKeeperContainer {
-        return TestContainers.getZooKeeper(key)
+    fun getContainer(ecosZooKeeper: EcosZooKeeper): ZooKeeperContainer? {
+        return containerByZooKeeper[ecosZooKeeper]
     }
 
     @JvmStatic
@@ -64,6 +68,11 @@ object EcosZooKeeperTest {
         val zooKeeper = this.zooKeeper[zkKey]
         if (zooKeeper == null) {
             val nnZooKeeper = createZooKeeper(key, true) { this.zooKeeper.remove(zkKey) }
+            if (key == "" && mainContainerReserved.compareAndSet(false, true)) {
+                val container = containerByZooKeeper[nnZooKeeper]!!
+                container.reserve()
+                EcosTestExecutionListener.doWhenTestPlanExecutionFinished { container.release() }
+            }
             this.zooKeeper[zkKey] = nnZooKeeper
             return nnZooKeeper
         }
