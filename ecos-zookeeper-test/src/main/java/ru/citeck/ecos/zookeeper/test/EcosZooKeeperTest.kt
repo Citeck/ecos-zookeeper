@@ -34,23 +34,27 @@ object EcosZooKeeperTest {
     @JvmStatic
     @JvmOverloads
     fun createZooKeeper(key: Any, closeAfterTest: Boolean = true, beforeClose: () -> Unit): EcosZooKeeper {
-        val container = TestContainers.getZooKeeper(key)
+        val container = TestContainers.getZooKeeper(key) {
+            releaseAfterTest(false)
+        }
         val props = EcosZooKeeperProperties(container.getHost(), container.getMainPort())
         val zooKeeper = EcosZooKeeper(props)
         containerByZooKeeper[zooKeeper] = container
         val wasClosed = AtomicBoolean(false)
-        val closeImpl = {
+        val closeImpl: (Boolean) -> Unit = { fromContainer ->
             if (wasClosed.compareAndSet(false, true)) {
                 beforeClose.invoke()
                 zooKeeper.dispose()
-                container.release()
+                if (!fromContainer) {
+                    container.release()
+                }
                 containerByZooKeeper.remove(zooKeeper)
             }
         }
         if (closeAfterTest) {
-            EcosTestExecutionListener.doWhenExecutionFinished { _, _ -> closeImpl() }
+            EcosTestExecutionListener.doWhenExecutionFinished { _, _ -> closeImpl(false) }
         }
-        container.doBeforeStop(closeImpl)
+        container.doBeforeStop { closeImpl(true) }
         return zooKeeper
     }
 
