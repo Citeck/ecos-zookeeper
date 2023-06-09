@@ -119,9 +119,18 @@ class EcosZooKeeper private constructor(
 
         val now = Instant.now()
 
-        val current: Stat? = getClient().checkExists().forPath(path)
+        var currentZnodeStat: Stat? = getClient().checkExists().forPath(path)
 
-        if (current == null) {
+        if (currentZnodeStat != null && !persistent && currentZnodeStat.ephemeralOwner != client.getSessionId()) {
+
+            getClient().delete()
+                .deletingChildrenIfNeeded()
+                .forPath(path)
+
+            currentZnodeStat = null
+        }
+
+        if (currentZnodeStat == null) {
 
             getClient().create()
                 .creatingParentContainersIfNeeded()
@@ -134,7 +143,7 @@ class EcosZooKeeper private constructor(
             val created = currentValue?.created ?: now
 
             getClient().setData()
-                .withVersion(current.version)
+                .withVersion(currentZnodeStat.version)
                 .forPath(path, createNodeValue(value, created, now))
         }
     }

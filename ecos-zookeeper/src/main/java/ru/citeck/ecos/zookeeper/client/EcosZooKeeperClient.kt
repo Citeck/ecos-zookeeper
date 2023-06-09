@@ -36,6 +36,9 @@ internal class EcosZooKeeperClient(props: EcosZooKeeperClientProps) {
     private val connectionLost = AtomicBoolean()
     private val reconnectedAfterLostActionsRequired = AtomicBoolean()
 
+    @Volatile
+    private var sessionId: Long = 0
+
     private val reconnectedListeners: MutableList<() -> Unit> = CopyOnWriteArrayList()
 
     init {
@@ -56,7 +59,10 @@ internal class EcosZooKeeperClient(props: EcosZooKeeperClientProps) {
             .newClient(connectString, retryPolicy)
         client.start()
 
-        client.connectionStateListenable.addListener { _, newState ->
+        client.connectionStateListenable.addListener { zk, newState ->
+            if (newState == ConnectionState.RECONNECTED || newState == ConnectionState.CONNECTED) {
+                sessionId = zk.zookeeperClient.zooKeeper.sessionId
+            }
             if (newState == ConnectionState.LOST) {
                 connectionLost.set(true)
             } else if (connectionLost.get() && newState == ConnectionState.RECONNECTED) {
@@ -157,6 +163,10 @@ internal class EcosZooKeeperClient(props: EcosZooKeeperClientProps) {
         } else {
             client.usingNamespace(namespace)
         }
+    }
+
+    fun getSessionId(): Long {
+        return sessionId
     }
 
     fun dispose() {
