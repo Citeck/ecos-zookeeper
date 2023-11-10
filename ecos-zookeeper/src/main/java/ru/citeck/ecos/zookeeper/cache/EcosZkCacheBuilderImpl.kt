@@ -42,6 +42,10 @@ class EcosZkCacheBuilderImpl(
             }
         }
 
+        override fun addListener(listener: CuratorCacheListener) {
+            cache.listenable().addListener(listener)
+        }
+
         override fun <T : Any> getValue(path: String, type: Class<out T>): T? {
             return getValue(path, Json.mapper.getType(type))
         }
