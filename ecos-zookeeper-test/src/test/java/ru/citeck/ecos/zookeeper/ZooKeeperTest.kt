@@ -1,11 +1,11 @@
 package ru.citeck.ecos.zookeeper
 
-import com.github.luben.zstd.ZstdInputStream
 import ecos.com.fasterxml.jackson210.dataformat.cbor.CBORFactory
 import ecos.curator.org.apache.zookeeper.CreateMode
 import ecos.curator.org.apache.zookeeper.KeeperException
 import ecos.curator.org.apache.zookeeper.ZooDefs
 import ecos.org.apache.curator.framework.CuratorFramework
+import io.airlift.compress.zstd.ZstdInputStream
 import mu.KotlinLogging
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.*

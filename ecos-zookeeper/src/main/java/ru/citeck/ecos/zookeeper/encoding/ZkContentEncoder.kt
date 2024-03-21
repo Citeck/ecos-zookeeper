@@ -1,7 +1,7 @@
 package ru.citeck.ecos.zookeeper.encoding
 
-import com.github.luben.zstd.ZstdInputStream
-import com.github.luben.zstd.ZstdOutputStream
+import io.airlift.compress.zstd.ZstdInputStream
+import io.airlift.compress.zstd.ZstdOutputStream
 import ru.citeck.ecos.commons.data.ObjectData
 import java.io.InputStream
 import java.io.OutputStream
@@ -20,7 +20,7 @@ class ZkContentEncoder {
             ContentEncoding.PLAIN -> output
             ContentEncoding.ZSTD -> {
                 options as ZstdOptions
-                ZstdOutputStream(output, options.level)
+                ZstdOutputStream(output)
             }
         }
     }
@@ -32,9 +32,7 @@ class ZkContentEncoder {
         }
     }
 
-    class ZstdOptions(
-        val level: Int = 3
-    ) : Options
+    class ZstdOptions : Options
 
     object EmptyOptions : Options
 
