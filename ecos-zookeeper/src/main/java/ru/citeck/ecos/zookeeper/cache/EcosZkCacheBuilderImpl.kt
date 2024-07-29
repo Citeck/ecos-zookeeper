@@ -1,13 +1,11 @@
 package ru.citeck.ecos.zookeeper.cache
 
-import ecos.com.fasterxml.jackson210.databind.JavaType
-import ecos.org.apache.curator.framework.recipes.cache.CuratorCache
-import ecos.org.apache.curator.framework.recipes.cache.CuratorCacheBuilder
-import ecos.org.apache.curator.framework.recipes.cache.CuratorCacheListener
+import com.fasterxml.jackson.databind.JavaType
+import org.apache.curator.framework.recipes.cache.CuratorCache
+import org.apache.curator.framework.recipes.cache.CuratorCacheBuilder
+import org.apache.curator.framework.recipes.cache.CuratorCacheListener
 import ru.citeck.ecos.commons.json.Json
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.streams.toList
 
 class EcosZkCacheBuilderImpl(
     private val basePath: String,
@@ -22,7 +20,11 @@ class EcosZkCacheBuilderImpl(
     private inner class EcosZkCacheImpl(private val cache: CuratorCache) : EcosZkCache {
 
         private val convertedValues = ConcurrentHashMap<CacheKey, ConvertedValue<*>>()
-        private val baseCachePath = if (basePath == "/") { "" } else { basePath }
+        private val baseCachePath = if (basePath == "/") {
+            ""
+        } else {
+            basePath
+        }
 
         init {
             cache.start()

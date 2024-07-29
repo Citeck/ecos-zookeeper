@@ -1,8 +1,8 @@
 package ru.citeck.ecos.zookeeper.lock
 
-import ecos.org.apache.curator.framework.CuratorFramework
-import ecos.org.apache.curator.framework.recipes.locks.InterProcessSemaphoreMutex
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
+import org.apache.curator.framework.CuratorFramework
+import org.apache.curator.framework.recipes.locks.InterProcessSemaphoreMutex
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 

@@ -1,7 +1,7 @@
 package ru.citeck.ecos.zookeeper.cache
 
-import ecos.com.fasterxml.jackson210.databind.JavaType
-import ecos.org.apache.curator.framework.recipes.cache.CuratorCacheListener
+import com.fasterxml.jackson.databind.JavaType
+import org.apache.curator.framework.recipes.cache.CuratorCacheListener
 
 interface EcosZkCache {
 

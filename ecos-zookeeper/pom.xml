@@ -13,25 +13,12 @@
         <version>${revision}</version>
     </parent>
 
-    <properties>
-
-        <ecos.curator.version>5.4.0.0</ecos.curator.version>
-
-    </properties>
-
     <dependencies>
 
         <dependency>
-            <groupId>ru.citeck.ecos</groupId>
-            <artifactId>ecos-curator-framework</artifactId>
-            <version>${ecos.curator.version}</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>commons-lang</groupId>
-            <artifactId>commons-lang</artifactId>
-            <version>2.6</version>
+            <groupId>ru.citeck.ecos.zookeeper</groupId>
+            <artifactId>ecos-zookeeper-deps</artifactId>
+            <version>${project.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -43,6 +30,16 @@
             <plugin>
                 <groupId>com.github.gantsign.maven</groupId>
                 <artifactId>ktlint-maven-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
             </plugin>
 
         </plugins>

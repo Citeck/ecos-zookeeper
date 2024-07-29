@@ -1,12 +1,12 @@
 package ru.citeck.ecos.zookeeper
 
-import ecos.com.fasterxml.jackson210.dataformat.cbor.CBORFactory
-import ecos.curator.org.apache.zookeeper.CreateMode
-import ecos.curator.org.apache.zookeeper.KeeperException
-import ecos.curator.org.apache.zookeeper.ZooDefs
-import ecos.org.apache.curator.framework.CuratorFramework
+import com.fasterxml.jackson.dataformat.cbor.CBORFactory
 import io.airlift.compress.zstd.ZstdInputStream
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
+import org.apache.curator.framework.CuratorFramework
+import org.apache.zookeeper.CreateMode
+import org.apache.zookeeper.KeeperException
+import org.apache.zookeeper.ZooDefs
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.*
 import ru.citeck.ecos.commons.data.DataValue

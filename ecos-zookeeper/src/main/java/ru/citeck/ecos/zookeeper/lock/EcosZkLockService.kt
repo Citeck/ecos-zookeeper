@@ -1,6 +1,6 @@
 package ru.citeck.ecos.zookeeper.lock
 
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import ru.citeck.ecos.commons.utils.NameUtils
 import ru.citeck.ecos.webapp.api.lock.EcosLock
 import ru.citeck.ecos.webapp.api.lock.EcosLockApi

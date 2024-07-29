@@ -1,14 +1,14 @@
 package ru.citeck.ecos.zookeeper
 
-import ecos.com.fasterxml.jackson210.databind.JavaType
-import ecos.com.fasterxml.jackson210.databind.JsonNode
-import ecos.com.fasterxml.jackson210.databind.node.NullNode
-import ecos.com.fasterxml.jackson210.dataformat.cbor.CBORFactory
-import ecos.curator.org.apache.zookeeper.*
-import ecos.curator.org.apache.zookeeper.data.Stat
-import ecos.org.apache.curator.framework.CuratorFramework
-import ecos.org.apache.curator.framework.recipes.cache.CuratorCache
-import mu.KotlinLogging
+import com.fasterxml.jackson.databind.JavaType
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node.NullNode
+import com.fasterxml.jackson.dataformat.cbor.CBORFactory
+import io.github.oshai.kotlinlogging.KotlinLogging
+import org.apache.curator.framework.CuratorFramework
+import org.apache.curator.framework.recipes.cache.CuratorCache
+import org.apache.zookeeper.*
+import org.apache.zookeeper.data.Stat
 import ru.citeck.ecos.commons.data.DataValue
 import ru.citeck.ecos.commons.json.Json
 import ru.citeck.ecos.commons.json.exception.JsonMapperException

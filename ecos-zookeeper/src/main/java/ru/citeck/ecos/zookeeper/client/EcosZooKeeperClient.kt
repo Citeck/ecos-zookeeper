@@ -1,15 +1,15 @@
 package ru.citeck.ecos.zookeeper.client
 
-import ecos.curator.org.apache.zookeeper.AddWatchMode
-import ecos.curator.org.apache.zookeeper.WatchedEvent
-import ecos.curator.org.apache.zookeeper.Watcher.Event.EventType
-import ecos.org.apache.curator.SessionFailedRetryPolicy
-import ecos.org.apache.curator.framework.CuratorFramework
-import ecos.org.apache.curator.framework.CuratorFrameworkFactory
-import ecos.org.apache.curator.framework.api.CuratorWatcher
-import ecos.org.apache.curator.framework.state.ConnectionState
-import ecos.org.apache.curator.retry.RetryForever
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
+import org.apache.curator.SessionFailedRetryPolicy
+import org.apache.curator.framework.CuratorFramework
+import org.apache.curator.framework.CuratorFrameworkFactory
+import org.apache.curator.framework.api.CuratorWatcher
+import org.apache.curator.framework.state.ConnectionState
+import org.apache.curator.retry.RetryForever
+import org.apache.zookeeper.AddWatchMode
+import org.apache.zookeeper.WatchedEvent
+import org.apache.zookeeper.Watcher.Event.EventType
 import ru.citeck.ecos.zookeeper.watcher.EcosZkWatcher
 import ru.citeck.ecos.zookeeper.watcher.EcosZkWatcherImpl
 import java.lang.Exception
